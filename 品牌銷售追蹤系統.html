@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>品牌銷售追蹤系統</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:#ffffff; --bg2:#f5f5f3; --bg3:#efefec;
+    --text:#1a1a18; --text2:#6b6b66; --text3:#9b9b96;
+    --border:rgba(0,0,0,0.1); --border2:rgba(0,0,0,0.18);
+    --radius:8px; --radius-lg:12px; --sidebar-w:220px;
+    --blue:#185FA5; --green:#27500A; --red:#791F1F; --amber:#633806;
+  }
+  @media (prefers-color-scheme:dark) {
+    :root {
+      --bg:#1c1c1a; --bg2:#252523; --bg3:#2e2e2b;
+      --text:#e8e8e2; --text2:#9b9b96; --text3:#6b6b66;
+      --border:rgba(255,255,255,0.1); --border2:rgba(255,255,255,0.18);
+    }
+  }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+  /* ── LOGIN ── */
+  #loginScreen { display:flex; align-items:center; justify-content:center; min-height:100vh; background:var(--bg2); }
+  .login-box { background:var(--bg); border:0.5px solid var(--border2); border-radius:var(--radius-lg); padding:2rem; width:360px; max-width:95vw; }
+  .login-logo { font-size:16px; font-weight:600; color:var(--text); margin-bottom:4px; }
+  .login-sub { font-size:12px; color:var(--text3); margin-bottom:1.5rem; }
+  .form-group { margin-bottom:1rem; }
+  .form-label { font-size:12px; color:var(--text2); margin-bottom:5px; display:block; }
+  .form-input { width:100%; padding:9px 11px; border:0.5px solid var(--border2); border-radius:var(--radius); background:var(--bg2); color:var(--text); font-size:13px; }
+  .form-input:focus { outline:none; border-color:var(--blue); }
+  .btn { padding:8px 16px; border-radius:var(--radius); border:0.5px solid var(--border2); background:transparent; font-size:13px; color:var(--text2); cursor:pointer; transition:background .12s; }
+  .btn:hover { background:var(--bg2); }
+  .btn.primary { background:var(--text); color:var(--bg); border-color:var(--text); width:100%; padding:10px; font-size:13px; margin-top:4px; }
+  .btn.primary:hover { opacity:.85; }
+  .login-err { font-size:12px; color:#E24B4A; margin-top:8px; text-align:center; min-height:18px; }
+
+  /* ── APP ── */
+  #appScreen { display:none; min-height:100vh; flex-direction:column; }
+  #appScreen.show { display:flex; }
+  .app-layout { display:flex; flex:1; }
+
+  /* ── SIDEBAR ── */
+  .sidebar { width:var(--sidebar-w); min-height:100vh; background:var(--bg2); border-right:0.5px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+  .sidebar-logo { padding:1.25rem 1rem 1rem; border-bottom:0.5px solid var(--border); }
+  .sidebar-logo p { font-size:13px; font-weight:600; color:var(--text); }
+  .sidebar-logo span { font-size:11px; color:var(--text3); }
+  .sidebar-nav { padding:.5rem 0; flex:1; }
+  .nav-item { display:flex; align-items:center; gap:9px; padding:9px 1rem; font-size:13px; color:var(--text2); cursor:pointer; transition:background .12s,color .12s; }
+  .nav-item:hover { background:var(--bg3); color:var(--text); }
+  .nav-item.active { background:var(--bg3); color:var(--text); font-weight:500; }
+  .nav-icon { width:16px; text-align:center; font-size:13px; }
+  .sidebar-user { padding:.75rem 1rem; border-top:0.5px solid var(--border); }
+  .user-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .user-avatar { width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; flex-shrink:0; background:#E6F1FB; color:#0C447C; }
+  .user-name { font-size:12px; font-weight:500; color:var(--text); }
+  .user-email { font-size:10px; color:var(--text3); }
+  .role-badge { font-size:10px; padding:2px 7px; border-radius:99px; display:inline-block; }
+
+  /* ── MAIN ── */
+  .main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  .topbar { display:flex; justify-content:space-between; align-items:center; padding:.85rem 1.5rem; border-bottom:0.5px solid var(--border); background:var(--bg); }
+  .topbar-title { font-size:15px; font-weight:500; color:var(--text); }
+  .topbar-right { display:flex; gap:8px; align-items:center; }
+  .content { flex:1; padding:1.5rem; overflow-y:auto; }
+  .page { display:none; }
+  .page.active { display:block; }
+
+  /* ── METRICS ── */
+  .metrics-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:1.25rem; }
+  .metric { background:var(--bg2); border-radius:var(--radius); padding:.9rem 1rem; }
+  .metric-label { font-size:11px; color:var(--text3); margin-bottom:5px; }
+  .metric-value { font-size:20px; font-weight:600; color:var(--text); }
+  .metric-sub { font-size:11px; margin-top:3px; color:var(--text3); }
+  .card { background:var(--bg); border:0.5px solid var(--border); border-radius:var(--radius-lg); padding:1.25rem; margin-bottom:1.25rem; }
+  .card-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; }
+  .card-title { font-size:13px; font-weight:500; color:var(--text2); }
+  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:1.25rem; }
+
+  /* ── BRAND CARDS ── */
+  .brand-card { background:var(--bg); border:0.5px solid var(--border); border-radius:var(--radius-lg); padding:1.1rem 1.25rem; margin-bottom:10px; }
+  .brand-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:.75rem; }
+  .brand-name-row { display:flex; align-items:center; gap:8px; }
+  .brand-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .brand-title { font-size:14px; font-weight:500; color:var(--text); }
+  .brand-meta { font-size:11px; color:var(--text3); margin-top:2px; }
+  .brand-actual { font-size:18px; font-weight:600; }
+  .brand-target { font-size:11px; color:var(--text3); }
+  .progress-bar { height:6px; background:var(--bg3); border-radius:99px; overflow:hidden; margin:5px 0 8px; }
+  .progress-fill { height:100%; border-radius:99px; transition:width .6s ease; }
+  .progress-label { display:flex; justify-content:space-between; font-size:11px; color:var(--text3); }
+  .brand-stats { display:flex; gap:16px; }
+  .brand-stat { font-size:11px; color:var(--text3); }
+  .brand-stat strong { color:var(--text2); font-weight:500; }
+  .status-pill { font-size:10px; padding:2px 8px; border-radius:99px; }
+
+  /* ── TABLE ── */
+  .data-table { width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed; }
+  .data-table th { font-size:11px; font-weight:500; color:var(--text3); padding:7px 10px; border-bottom:0.5px solid var(--border); text-align:left; }
+  .data-table th.r { text-align:right; }
+  .data-table td { padding:11px 10px; border-bottom:0.5px solid var(--border); color:var(--text); vertical-align:middle; }
+  .data-table td.r { text-align:right; }
+  .data-table tr:last-child td { border-bottom:none; }
+  .data-table tr.total td { font-weight:600; background:var(--bg2); }
+  .rate-block { display:flex; flex-direction:column; align-items:flex-end; gap:3px; }
+  .mini-bar-wrap { width:70px; height:4px; background:var(--bg3); border-radius:99px; overflow:hidden; }
+  .mini-bar { height:100%; border-radius:99px; }
+
+  /* ── CALENDAR ── */
+  .cal-topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:10px; }
+  .cal-nav { display:flex; align-items:center; gap:10px; }
+  .cal-month-label { font-size:15px; font-weight:500; color:var(--text); min-width:100px; text-align:center; }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px; margin-bottom:1.25rem; }
+  .cal-header { text-align:center; font-size:11px; color:var(--text3); padding:4px 0; font-weight:500; }
+  .cal-cell { min-height:80px; background:var(--bg); border:0.5px solid var(--border); border-radius:var(--radius); padding:5px; cursor:pointer; transition:border-color .15s; }
+  .cal-cell:hover { border-color:var(--border2); }
+  .cal-cell.empty { background:transparent; border-color:transparent; cursor:default; }
+  .cal-cell.today { border-color:var(--blue); }
+  .cal-cell.selected { border-color:var(--text); border-width:1px; }
+  .cal-day-num { font-size:11px; font-weight:500; color:var(--text3); margin-bottom:3px; }
+  .cal-cell.today .cal-day-num { color:var(--blue); }
+  .ev-pill { font-size:10px; padding:2px 5px; border-radius:4px; margin-bottom:2px; display:flex; align-items:center; justify-content:space-between; gap:2px; overflow:hidden; }
+  .ev-pill.group { border-radius:99px; }
+  .legend-bar { display:flex; gap:16px; flex-wrap:wrap; background:var(--bg2); padding:.65rem 1rem; border-radius:var(--radius); margin-bottom:1rem; align-items:center; }
+  .legend-sep { width:0.5px; height:16px; background:var(--border2); }
+  .legend-item { display:flex; align-items:center; gap:4px; font-size:11px; color:var(--text2); }
+  .legend-dot { width:10px; height:10px; border-radius:50%; }
+
+  /* ── DETAIL ── */
+  .detail-panel { background:var(--bg); border:0.5px solid var(--border2); border-radius:var(--radius-lg); padding:1.25rem; margin-bottom:1.25rem; }
+  .ev-card { border-radius:var(--radius); padding:.75rem 1rem; margin-bottom:8px; border-left:3px solid transparent; }
+  .ev-top { display:flex; justify-content:space-between; align-items:flex-start; }
+  .ev-brand { font-size:13px; font-weight:500; margin-bottom:4px; }
+  .ev-badge { font-size:10px; padding:2px 7px; border-radius:99px; margin-right:4px; }
+  .ev-amount { font-size:20px; font-weight:600; text-align:right; }
+  .ev-note { font-size:11px; color:var(--text3); text-align:right; margin-top:2px; }
+  .ev-total { display:flex; justify-content:space-between; align-items:center; padding:.7rem 1rem; background:var(--bg2); border-radius:var(--radius); margin-top:10px; }
+
+  /* ── CHART ── */
+  .chart-wrap { position:relative; height:240px; }
+  .filter-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:1rem; }
+  .filter-btn { font-size:11px; padding:4px 11px; border-radius:99px; border:0.5px solid var(--border); background:transparent; cursor:pointer; color:var(--text2); }
+  .filter-btn.active { background:var(--bg3); color:var(--text); border-color:var(--border2); font-weight:500; }
+
+  /* ── TABS ── */
+  .tab-row { display:flex; gap:6px; margin-bottom:1.25rem; }
+  .tab { padding:6px 16px; border-radius:99px; border:0.5px solid var(--border); background:transparent; font-size:13px; cursor:pointer; color:var(--text2); }
+  .tab.active { background:var(--bg3); color:var(--text); border-color:var(--border2); font-weight:500; }
+  .period-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:1.25rem; align-items:center; }
+  .period-label { font-size:12px; color:var(--text3); }
+  .period-btn { padding:4px 12px; border-radius:var(--radius); border:0.5px solid var(--border); background:transparent; font-size:12px; cursor:pointer; color:var(--text2); }
+  .period-btn.active { background:var(--bg3); color:var(--text); border-color:var(--border2); }
+
+  /* ── MODAL ── */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:100; align-items:center; justify-content:center; }
+  .modal-overlay.open { display:flex; }
+  .modal { background:var(--bg); border-radius:var(--radius-lg); padding:1.5rem; width:420px; max-width:95vw; border:0.5px solid var(--border2); }
+  .modal-title { font-size:15px; font-weight:500; color:var(--text); margin-bottom:1.25rem; }
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .modal-footer { display:flex; justify-content:flex-end; gap:8px; margin-top:1.25rem; }
+
+  /* ── LOADING ── */
+  .loading { display:flex; align-items:center; justify-content:center; min-height:100vh; font-size:13px; color:var(--text3); }
+
+  /* ── TOAST ── */
+  .toast { position:fixed; bottom:24px; right:24px; background:var(--text); color:var(--bg); padding:10px 16px; border-radius:var(--radius); font-size:13px; z-index:200; opacity:0; transform:translateY(8px); transition:all .2s; pointer-events:none; }
+  .toast.show { opacity:1; transform:translateY(0); }
+
+  /* ── ADMIN ONLY ── */
+  .admin-only { display:none; }
+  .is-admin .admin-only { display:flex; }
+  .is-admin-block .admin-only { display:block; }
+
+  @media (max-width:768px) {
+    .sidebar { width:56px; }
+    .sidebar-logo p,.sidebar-logo span,.nav-item span,.user-name,.user-email,.role-badge { display:none; }
+    .metrics-grid { grid-template-columns:repeat(2,1fr); }
+    .two-col { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── LOADING ── -->
+<div class="loading" id="loadingScreen">載入中...</div>
+
+<!-- ── LOGIN ── -->
+<div id="loginScreen" style="display:none;">
+  <div class="login-box">
+    <div class="login-logo">品牌銷售追蹤系統</div>
+    <div class="login-sub">請登入您的帳號</div>
+    <div class="form-group">
+      <label class="form-label">電子郵件</label>
+      <input type="email" class="form-input" id="loginEmail" placeholder="email@company.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">密碼</label>
+      <input type="password" class="form-input" id="loginPassword" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn primary" onclick="doLogin()">登入</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- ── APP ── -->
+<div id="appScreen">
+  <div class="app-layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <p>Sales Tracker</p>
+        <span>品牌銷售管理系統</span>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-item active" onclick="showPage('overview',this)">
+          <span class="nav-icon">◈</span><span>品牌總覽</span>
+        </div>
+        <div class="nav-item" onclick="showPage('report',this)">
+          <span class="nav-icon">▦</span><span>月 / 季報表</span>
+        </div>
+        <div class="nav-item" onclick="showPage('trend',this)">
+          <span class="nav-icon">↗</span><span>銷售趨勢</span>
+        </div>
+        <div class="nav-item" onclick="showPage('calendar',this)">
+          <span class="nav-icon">▤</span><span>開團日曆</span>
+        </div>
+        <div class="nav-item" onclick="showPage('entry',this)">
+          <span class="nav-icon">✎</span><span>輸入營業額</span>
+        </div>
+        <div class="nav-item admin-only" onclick="showPage('admin',this)">
+          <span class="nav-icon">⚙</span><span>管理設定</span>
+        </div>
+      </nav>
+      <div class="sidebar-user">
+        <div class="user-row">
+          <div class="user-avatar" id="userAvatar">?</div>
+          <div>
+            <div class="user-name" id="userName">—</div>
+            <div class="user-email" id="userEmail">—</div>
+          </div>
+        </div>
+        <span class="role-badge" id="userRoleBadge" style="background:#E6F1FB;color:#0C447C;">—</span>
+        <br><br>
+        <button class="btn" style="width:100%;font-size:11px;" onclick="doLogout()">登出</button>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <div class="topbar">
+        <span class="topbar-title" id="pageTitle">品牌進度總覽</span>
+        <div class="topbar-right">
+          <span style="font-size:12px;color:var(--text3);" id="todayLabel"></span>
+          <button class="btn primary" onclick="openModal('entryModal')">+ 輸入營業額</button>
+        </div>
+      </div>
+
+      <div class="content">
+
+        <!-- PAGE: 品牌總覽 -->
+        <div class="page active" id="page-overview">
+          <div class="metrics-grid">
+            <div class="metric"><div class="metric-label">本月全品牌營業額</div><div class="metric-value" id="ov-total">載入中...</div><div class="metric-sub" id="ov-vs"></div></div>
+            <div class="metric"><div class="metric-label">整體月達成率</div><div class="metric-value" id="ov-rate">—</div><div class="metric-sub" id="ov-gap"></div></div>
+            <div class="metric"><div class="metric-label">達標品牌</div><div class="metric-value" id="ov-pass">—</div><div class="metric-sub">≥ 80% 達標</div></div>
+            <div class="metric"><div class="metric-label">本季累計</div><div class="metric-value" id="ov-qtotal">—</div><div class="metric-sub" id="ov-qrate"></div></div>
+          </div>
+          <div id="brandCards"></div>
+        </div>
+
+        <!-- PAGE: 月/季報表 -->
+        <div class="page" id="page-report">
+          <div class="tab-row">
+            <button class="tab active" onclick="setReportView('month',this)">月報表</button>
+            <button class="tab" onclick="setReportView('quarter',this)">季報表</button>
+          </div>
+          <div id="reportMonth">
+            <div class="period-row">
+              <span class="period-label">月份</span>
+              <button class="period-btn" onclick="setRM(1,this)">1月</button>
+              <button class="period-btn" onclick="setRM(2,this)">2月</button>
+              <button class="period-btn" onclick="setRM(3,this)">3月</button>
+              <button class="period-btn active" onclick="setRM(4,this)">4月</button>
+              <button class="period-btn" onclick="setRM(5,this)">5月</button>
+              <button class="period-btn" onclick="setRM(6,this)">6月</button>
+              <button class="period-btn" onclick="setRM(7,this)">7月</button>
+              <button class="period-btn" onclick="setRM(8,this)">8月</button>
+              <button class="period-btn" onclick="setRM(9,this)">9月</button>
+              <button class="period-btn" onclick="setRM(10,this)">10月</button>
+              <button class="period-btn" onclick="setRM(11,this)">11月</button>
+              <button class="period-btn" onclick="setRM(12,this)">12月</button>
+            </div>
+            <div id="monthTableWrap"></div>
+          </div>
+          <div id="reportQuarter" style="display:none;">
+            <div class="period-row">
+              <span class="period-label">季度</span>
+              <button class="period-btn" onclick="setRQ(1,this)">Q1</button>
+              <button class="period-btn active" onclick="setRQ(2,this)">Q2</button>
+              <button class="period-btn" onclick="setRQ(3,this)">Q3</button>
+              <button class="period-btn" onclick="setRQ(4,this)">Q4</button>
+            </div>
+            <div id="quarterTableWrap"></div>
+          </div>
+        </div>
+
+        <!-- PAGE: 銷售趨勢 -->
+        <div class="page" id="page-trend">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">各品牌月度銷售趨勢</span>
+              <div class="filter-row" style="margin-bottom:0;" id="trendFilters">
+                <button class="filter-btn active" onclick="setTF('all',this)">全部</button>
+              </div>
+            </div>
+            <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">月度總營業額</span></div>
+            <div class="chart-wrap" style="height:180px;"><canvas id="totalChart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- PAGE: 開團日曆 -->
+        <div class="page" id="page-calendar">
+          <div class="cal-topbar">
+            <div class="cal-nav">
+              <button class="btn" onclick="calPrev()">‹</button>
+              <span class="cal-month-label" id="calMonthLabel"></span>
+              <button class="btn" onclick="calNext()">›</button>
+            </div>
+            <button class="btn primary" onclick="openModal('eventModal')">+ 新增活動</button>
+          </div>
+          <div class="legend-bar">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;" id="calBrandLegend"></div>
+            <div class="legend-sep"></div>
+            <div class="legend-item">● 開團</div>
+            <div class="legend-item">▪ 長期銷售</div>
+            <div class="legend-sep"></div>
+            <div class="legend-item">▶ 銷售中</div>
+            <div class="legend-item">✓ 已結案</div>
+            <div class="legend-item">◇ 即將開始</div>
+          </div>
+          <div id="calDetailPanel" style="display:none;" class="detail-panel"></div>
+          <div class="cal-grid" id="calGrid">
+            <div class="cal-header">日</div><div class="cal-header">一</div>
+            <div class="cal-header">二</div><div class="cal-header">三</div>
+            <div class="cal-header">四</div><div class="cal-header">五</div>
+            <div class="cal-header">六</div>
+          </div>
+        </div>
+
+        <!-- PAGE: 輸入營業額 -->
+        <div class="page" id="page-entry">
+          <div class="two-col">
+            <div class="card">
+              <div class="card-header"><span class="card-title">輸入本期營業額</span></div>
+              <div class="form-group">
+                <label class="form-label">品牌</label>
+                <select class="form-input" id="e-brand"></select>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">年份</label>
+                  <select class="form-input" id="e-year"><option value="2026">2026</option><option value="2025">2025</option></select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">月份</label>
+                  <select class="form-input" id="e-month">
+                    <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option>
+                    <option value="4" selected>4月</option><option value="5">5月</option><option value="6">6月</option>
+                    <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+                    <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">時段</label>
+                  <select class="form-input" id="e-period">
+                    <option value="mid">月中（約15日）</option>
+                    <option value="end">月底（約30日）</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">營業額（元）</label>
+                  <input type="number" class="form-input" id="e-amount" placeholder="例：128000">
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">備註（選填）</label>
+                <input type="text" class="form-input" id="e-note" placeholder="例：母親節活動衝刺">
+              </div>
+              <button class="btn primary" style="width:100%;padding:10px;" onclick="submitEntry()">提交</button>
+            </div>
+            <div class="card">
+              <div class="card-header"><span class="card-title">最近輸入記錄</span></div>
+              <div id="recentEntries"><p style="font-size:13px;color:var(--text3);text-align:center;padding:2rem 0;">載入中...</p></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAGE: 管理設定 (admin only) -->
+        <div class="page" id="page-admin">
+          <div class="two-col">
+            <div class="card">
+              <div class="card-header"><span class="card-title">新增員工帳號</span></div>
+              <div class="form-group"><label class="form-label">姓名</label><input type="text" class="form-input" id="newUserName" placeholder="例：林美華"></div>
+              <div class="form-group"><label class="form-label">電子郵件</label><input type="email" class="form-input" id="newUserEmail" placeholder="email@company.com"></div>
+              <div class="form-group"><label class="form-label">密碼</label><input type="password" class="form-input" id="newUserPwd" placeholder="最少6位"></div>
+              <div class="form-group">
+                <label class="form-label">負責品牌（可多選）</label>
+                <div id="newUserBrands" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;"></div>
+              </div>
+              <button class="btn primary" style="width:100%;padding:10px;" onclick="createUser()">建立帳號</button>
+            </div>
+            <div class="card">
+              <div class="card-header"><span class="card-title">設定品牌季度目標</span></div>
+              <div class="form-row" style="margin-bottom:10px;">
+                <div class="form-group">
+                  <label class="form-label">品牌</label>
+                  <select class="form-input" id="tgt-brand"></select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">季度</label>
+                  <select class="form-input" id="tgt-quarter">
+                    <option value="Q1">Q1</option><option value="Q2" selected>Q2</option>
+                    <option value="Q3">Q3</option><option value="Q4">Q4</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">目標金額（元）</label>
+                <input type="number" class="form-input" id="tgt-amount" placeholder="例：1200000">
+              </div>
+              <button class="btn primary" style="width:100%;padding:10px;" onclick="saveTarget()">儲存目標</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">員工帳號列表</span></div>
+            <div id="userList"><p style="font-size:13px;color:var(--text3);">載入中...</p></div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ── MODALS ── -->
+<div class="modal-overlay" id="entryModal">
+  <div class="modal">
+    <div class="modal-title">快速輸入營業額</div>
+    <div class="form-group"><label class="form-label">品牌</label><select class="form-input" id="me-brand"></select></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">月份</label>
+        <select class="form-input" id="me-month">
+          <option value="4" selected>4月</option><option value="5">5月</option><option value="6">6月</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">時段</label>
+        <select class="form-input" id="me-period"><option value="mid">月中</option><option value="end">月底</option></select>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">營業額（元）</label><input type="number" class="form-input" id="me-amount" placeholder="例：128000"></div>
+    <div class="form-group"><label class="form-label">備註（選填）</label><input type="text" class="form-input" id="me-note" placeholder="例：母親節活動"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('entryModal')">取消</button>
+      <button class="btn primary" onclick="submitModalEntry()">提交</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="eventModal">
+  <div class="modal">
+    <div class="modal-title">新增開團 / 銷售活動</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">品牌</label><select class="form-input" id="ev-brand"></select></div>
+      <div class="form-group"><label class="form-label">類型</label>
+        <select class="form-input" id="ev-type"><option value="開團">開團</option><option value="長期銷售">長期銷售</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">日期</label><input type="date" class="form-input" id="ev-date"></div>
+      <div class="form-group"><label class="form-label">狀態</label>
+        <select class="form-input" id="ev-status">
+          <option value="upcoming">◇ 即將開始</option>
+          <option value="active">▶ 銷售中</option>
+          <option value="closed">✓ 已結案</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">營業額（元）</label><input type="number" class="form-input" id="ev-amount" placeholder="0"></div>
+      <div class="form-group"><label class="form-label">活動名稱</label><input type="text" class="form-input" id="ev-note" placeholder="例：母親節開團"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('eventModal')">取消</button>
+      <button class="btn primary" onclick="submitEvent()">新增</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ── FIREBASE ── -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, addDoc, collection, query, where, orderBy, onSnapshot, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAgGILa0yXzFoKvh19kGsW-2lpI27Eafc8",
+  authDomain: "brand-sales-report.firebaseapp.com",
+  projectId: "brand-sales-report",
+  storageBucket: "brand-sales-report.firebasestorage.app",
+  messagingSenderId: "776871172529",
+  appId: "1:776871172529:web:773259871eeeccc9464590"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ══ STATE ══
+let currentUser = null;
+let currentProfile = null;
+let allBrands = [];
+let salesCache = {};
+let targetsCache = {};
+let eventsCache = [];
+let calYear = 2026, calMonth = new Date().getMonth();
+let calSelected = null;
+let reportMonth = new Date().getMonth()+1;
+let reportQuarter = Math.ceil((new Date().getMonth()+1)/3);
+let trendFilter = 'all';
+let trendChartInst = null, totalChartInst = null;
+
+const STATUS_META = {
+  active:   {sym:'▶', label:'銷售中',   bg:'#EAF3DE', fg:'#27500A'},
+  closed:   {sym:'✓', label:'已結案',   bg:'#F1EFE8', fg:'#5F5E5A'},
+  upcoming: {sym:'◇', label:'即將開始', bg:'#E6F1FB', fg:'#0C447C'},
+};
+
+// ══ HELPERS ══
+const fmt = n => n ? '$'+Number(n).toLocaleString() : '—';
+const fmtK = n => n ? '$'+(n/1000).toFixed(0)+'K' : '—';
+const rateColor = r => r>=100?'#27500A': r>=80?'#185FA5': r>=60?'#BA7517':'#E24B4A';
+const barColor  = r => r>=100?'#3B6D11': r>=80?'#185FA5': r>=60?'#EF9F27':'#E24B4A';
+const getQLabel = m => 'Q'+Math.ceil(m/3);
+const getMonthTarget = (id,m) => {
+  const q = getQLabel(m);
+  return Math.round((targetsCache[id]?.[q] || 0) / 3);
+};
+const getSales = (id,m) => salesCache[id]?.[m] || 0;
+const getBrand = id => allBrands.find(b=>b.id===id);
+const toast = msg => {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+};
+
+window.openModal = id => document.getElementById(id).classList.add('open');
+window.closeModal = id => document.getElementById(id).classList.remove('open');
+document.querySelectorAll('.modal-overlay').forEach(o=>{
+  o.addEventListener('click', e=>{ if(e.target===o) o.classList.remove('open'); });
+});
+
+// ══ AUTH ══
+window.doLogin = async () => {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pwd   = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginErr');
+  errEl.textContent = '';
+  try {
+    await signInWithEmailAndPassword(auth, email, pwd);
+  } catch(e) {
+    errEl.textContent = '電子郵件或密碼錯誤，請再試一次。';
+  }
+};
+
+window.doLogout = async () => {
+  await signOut(auth);
+};
+
+onAuthStateChanged(auth, async user => {
+  document.getElementById('loadingScreen').style.display = 'none';
+  if (!user) {
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('appScreen').style.display = 'none';
+    return;
+  }
+  currentUser = user;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'flex';
+
+  // Load profile
+  const profileSnap = await getDoc(doc(db, 'users', user.uid));
+  if (profileSnap.exists()) {
+    currentProfile = profileSnap.data();
+  } else {
+    // First time: check if admin
+    currentProfile = { name: user.email, role: 'staff', brands: [] };
+  }
+
+  const isAdmin = currentProfile.role === 'admin';
+  document.getElementById('appScreen').classList.toggle('is-admin', isAdmin);
+
+  // UI
+  const initials = (currentProfile.name||'?').slice(0,2);
+  document.getElementById('userAvatar').textContent = initials;
+  document.getElementById('userName').textContent = currentProfile.name || user.email;
+  document.getElementById('userEmail').textContent = user.email;
+  document.getElementById('userRoleBadge').textContent = isAdmin ? '管理者' : '業務';
+  document.getElementById('todayLabel').textContent = new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('ev-date').value = new Date().toISOString().split('T')[0];
+
+  await loadBrands();
+  await loadTargets();
+  listenSales();
+  listenEvents();
+  listenEntries();
+  if (isAdmin) loadUserList();
+});
+
+// ══ LOAD BRANDS ══
+async function loadBrands() {
+  const snap = await getDocs(collection(db, 'brands'));
+  if (snap.empty) {
+    // Seed default brands
+    const defaults = [
+      {id:'A',name:'品牌 A',color:'#185FA5',bg:'#E6F1FB',text:'#0C447C'},
+      {id:'B',name:'品牌 B',color:'#0F6E56',bg:'#E1F5EE',text:'#085041'},
+      {id:'C',name:'品牌 C',color:'#854F0B',bg:'#FAEEDA',text:'#633806'},
+      {id:'D',name:'品牌 D',color:'#534AB7',bg:'#EEEDFE',text:'#3C3489'},
+      {id:'E',name:'品牌 E',color:'#993556',bg:'#FBEAF0',text:'#72243E'},
+      {id:'F',name:'品牌 F',color:'#5F5E5A',bg:'#F1EFE8',text:'#444441'},
+    ];
+    for (const b of defaults) await setDoc(doc(db,'brands',b.id), b);
+    allBrands = defaults;
+  } else {
+    allBrands = snap.docs.map(d=>({...d.data(), id:d.id}));
+  }
+
+  // Filter by role
+  const visibleBrands = currentProfile.role==='admin' ? allBrands : allBrands.filter(b=>currentProfile.brands?.includes(b.id));
+
+  populateBrandSelects(visibleBrands);
+  renderCalBrandLegend(visibleBrands);
+  renderTrendFilters(visibleBrands);
+  renderAdminBrandCheckboxes();
+}
+
+function populateBrandSelects(brands) {
+  ['e-brand','me-brand','ev-brand','tgt-brand'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.innerHTML = brands.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+  });
+}
+
+// ══ TARGETS ══
+async function loadTargets() {
+  const snap = await getDocs(collection(db,'targets'));
+  targetsCache = {};
+  snap.forEach(d=>{
+    const {brandId, quarter, amount} = d.data();
+    if(!targetsCache[brandId]) targetsCache[brandId]={};
+    targetsCache[brandId][quarter] = amount;
+  });
+  // Seed defaults if empty
+  if (snap.empty) {
+    const defaults = {
+      A:{Q1:800000,Q2:1200000,Q3:1000000,Q4:1500000},
+      B:{Q1:600000,Q2:900000, Q3:750000, Q4:1100000},
+      C:{Q1:500000,Q2:750000, Q3:600000, Q4:900000},
+      D:{Q1:700000,Q2:1050000,Q3:850000, Q4:1300000},
+      E:{Q1:400000,Q2:600000, Q3:500000, Q4:750000},
+      F:{Q1:450000,Q2:680000, Q3:550000, Q4:820000},
+    };
+    for (const [bid, qs] of Object.entries(defaults)) {
+      for (const [q, amt] of Object.entries(qs)) {
+        await addDoc(collection(db,'targets'), {brandId:bid, quarter:q, amount:amt});
+        if(!targetsCache[bid]) targetsCache[bid]={};
+        targetsCache[bid][q]=amt;
+      }
+    }
+  }
+}
+
+// ══ SALES (realtime) ══
+function listenSales() {
+  onSnapshot(collection(db,'sales'), snap=>{
+    salesCache = {};
+    snap.forEach(d=>{
+      const {brandId, month} = d.data();
+      const amt = d.data().amount || 0;
+      if(!salesCache[brandId]) salesCache[brandId]={};
+      salesCache[brandId][month] = (salesCache[brandId][month]||0) + amt;
+    });
+    renderOverview();
+    renderMonthTable(reportMonth);
+    renderQuarterTable(reportQuarter);
+    if(document.getElementById('page-trend').classList.contains('active')) renderTrend();
+  });
+}
+
+// ══ EVENTS (realtime) ══
+function listenEvents() {
+  onSnapshot(collection(db,'events'), snap=>{
+    eventsCache = snap.docs.map(d=>({...d.data(), id:d.id}));
+    renderCalendar();
+  });
+}
+
+// ══ ENTRIES (realtime) ══
+function listenEntries() {
+  const q = query(collection(db,'sales'), orderBy('createdAt','desc'));
+  onSnapshot(q, snap=>{
+    const entries = snap.docs.map(d=>({...d.data(),id:d.id}));
+    const visible = currentProfile.role==='admin' ? entries : entries.filter(e=>e.submittedBy===currentUser.uid);
+    renderRecentEntries(visible.slice(0,15));
+  });
+}
+
+// ══ OVERVIEW ══
+function renderOverview() {
+  const m = new Date().getMonth()+1;
+  const visibleBrands = currentProfile.role==='admin' ? allBrands : allBrands.filter(b=>currentProfile.brands?.includes(b.id));
+
+  const rows = visibleBrands.map(b=>{
+    const actual  = getSales(b.id, m);
+    const target  = getMonthTarget(b.id, m);
+    const rate    = target>0 ? Math.round(actual/target*100) : 0;
+    const diff    = actual - target;
+    const qLabel  = getQLabel(m);
+    const qTarget = targetsCache[b.id]?.[qLabel] || 0;
+    const qActual = [1,2,3].map(i=>m-((m-1)%3)+i-1).filter(x=>x>=1&&x<=12).reduce((s,x)=>s+getSales(b.id,x),0);
+    const qRate   = qTarget>0 ? Math.round(qActual/qTarget*100) : 0;
+    return {b, actual, target, rate, diff, qActual, qTarget, qRate};
+  });
+
+  const totActual = rows.reduce((s,r)=>s+r.actual,0);
+  const totTarget = rows.reduce((s,r)=>s+r.target,0);
+  const totRate   = totTarget>0 ? Math.round(totActual/totTarget*100) : 0;
+  const totDiff   = totActual - totTarget;
+  const passed    = rows.filter(r=>r.rate>=80&&r.actual>0).length;
+  const qTotActual= rows.reduce((s,r)=>s+r.qActual,0);
+  const qTotTarget= rows.reduce((s,r)=>s+r.qTarget,0);
+  const qTotRate  = qTotTarget>0 ? Math.round(qTotActual/qTotTarget*100) : 0;
+
+  document.getElementById('ov-total').textContent = fmtK(totActual);
+  document.getElementById('ov-rate').textContent  = totRate+'%';
+  document.getElementById('ov-rate').style.color  = rateColor(totRate);
+  document.getElementById('ov-gap').textContent   = (totDiff>=0?'超出 ':'差距 ')+fmtK(Math.abs(totDiff));
+  document.getElementById('ov-gap').style.color   = totDiff>=0?'#27500A':'#E24B4A';
+  document.getElementById('ov-pass').textContent  = passed+' / '+visibleBrands.length;
+  document.getElementById('ov-qtotal').textContent= fmtK(qTotActual);
+  document.getElementById('ov-qrate').textContent = getQLabel(m)+' 達成率 '+qTotRate+'%';
+  document.getElementById('ov-qrate').style.color = rateColor(qTotRate);
+
+  document.getElementById('brandCards').innerHTML = rows.map(({b,actual,target,rate,diff,qActual,qTarget,qRate})=>{
+    const bc=barColor(rate), rc=rateColor(rate);
+    const diffStr=(diff>=0?'+':'')+fmtK(diff);
+    const sl=rate>=100?'已達標':rate>=80?'接近達標':rate>=60?'待加油':'需關注';
+    const sb=rate>=100?'#EAF3DE':rate>=80?'#E6F1FB':rate>=60?'#FAEEDA':'#FCEBEB';
+    const sf=rate>=100?'#27500A':rate>=80?'#0C447C':rate>=60?'#633806':'#791F1F';
+    return `<div class="brand-card">
+      <div class="brand-header">
+        <div>
+          <div class="brand-name-row">
+            <span class="brand-dot" style="background:${b.color};"></span>
+            <span class="brand-title">${b.name}</span>
+            <span class="status-pill" style="background:${sb};color:${sf};">${sl}</span>
+          </div>
+          <div class="brand-meta">本月目標 ${fmt(target)} ／ ${getQLabel(new Date().getMonth()+1)} 目標 ${fmtK(qTarget)}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="brand-actual" style="color:${rc};">${fmt(actual)}</div>
+          <div class="brand-target">目標 ${fmtK(target)}</div>
+        </div>
+      </div>
+      <div class="progress-label"><span>月達成率 <strong style="color:${rc};">${rate}%</strong></span><span style="color:${diff>=0?'#27500A':'#E24B4A'};">${diffStr}</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(rate,100)}%;background:${bc};"></div></div>
+      <div class="brand-stats">
+        <div class="brand-stat">${getQLabel(new Date().getMonth()+1)}累計 <strong>${fmtK(qActual)}</strong></div>
+        <div class="brand-stat">${getQLabel(new Date().getMonth()+1)}達成率 <strong style="color:${rateColor(qRate)};">${qRate}%</strong></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══ REPORT ══
+window.setReportView = (v, btn) => {
+  document.querySelectorAll('#page-report .tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('reportMonth').style.display  = v==='month'?'block':'none';
+  document.getElementById('reportQuarter').style.display= v==='quarter'?'block':'none';
+};
+window.setRM = (m, btn) => {
+  reportMonth=m;
+  document.querySelectorAll('#reportMonth .period-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderMonthTable(m);
+};
+window.setRQ = (q, btn) => {
+  reportQuarter=q;
+  document.querySelectorAll('#reportQuarter .period-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderQuarterTable(q);
+};
+
+function renderMonthTable(m) {
+  const vb = currentProfile.role==='admin' ? allBrands : allBrands.filter(b=>currentProfile.brands?.includes(b.id));
+  const rows = vb.map(b=>{
+    const actual=getSales(b.id,m), target=getMonthTarget(b.id,m);
+    const rate=target>0?Math.round(actual/target*100):0, diff=actual-target;
+    return {b,actual,target,rate,diff};
+  });
+  const ta=rows.reduce((s,r)=>s+r.actual,0), tt=rows.reduce((s,r)=>s+r.target,0);
+  const tr=tt>0?Math.round(ta/tt*100):0, td=ta-tt, pass=rows.filter(r=>r.rate>=80&&r.actual>0).length;
+
+  document.getElementById('monthTableWrap').innerHTML=`
+    <div class="metrics-grid" style="margin-bottom:1.25rem;">
+      <div class="metric"><div class="metric-label">${m}月 實際營業額</div><div class="metric-value">${fmtK(ta)}</div></div>
+      <div class="metric"><div class="metric-label">${m}月 目標</div><div class="metric-value">${fmtK(tt)}</div></div>
+      <div class="metric"><div class="metric-label">整體達成率</div><div class="metric-value" style="color:${rateColor(tr)};">${tr}%</div><div class="metric-sub" style="color:${td>=0?'#27500A':'#E24B4A'};">${td>=0?'超出':'差距'} ${fmtK(Math.abs(td))}</div></div>
+      <div class="metric"><div class="metric-label">達標品牌數</div><div class="metric-value">${pass} / ${vb.length}</div></div>
+    </div>
+    <div class="card"><div class="card-header"><span class="card-title">${m}月 各品牌明細</span></div>
+    <div style="overflow-x:auto;"><table class="data-table" style="min-width:460px;">
+      <colgroup><col style="width:22%"><col style="width:22%"><col style="width:18%"><col style="width:26%"><col style="width:12%"></colgroup>
+      <thead><tr><th>品牌</th><th class="r">實際營業額</th><th class="r">月目標</th><th class="r">達成率</th><th class="r">差距</th></tr></thead>
+      <tbody>
+        ${rows.map(({b,actual,target,rate,diff})=>`<tr>
+          <td><div style="display:flex;align-items:center;gap:7px;"><span class="brand-dot" style="background:${b.color};"></span>${b.name}</div></td>
+          <td class="r" style="font-weight:500;">${actual?fmt(actual):'—'}</td>
+          <td class="r" style="color:var(--text2);">${fmt(target)}</td>
+          <td class="r"><div class="rate-block">
+            <span style="font-size:13px;font-weight:500;color:${actual?rateColor(rate):'var(--text3)'};">${actual?rate+'%':'—'}</span>
+            <div class="mini-bar-wrap"><div class="mini-bar" style="width:${Math.min(rate,100)}%;background:${barColor(rate)};"></div></div>
+          </div></td>
+          <td class="r" style="font-size:12px;color:${diff>=0?'#27500A':'#E24B4A'};">${actual?(diff>=0?'+':'')+fmtK(diff):'—'}</td>
+        </tr>`).join('')}
+        <tr class="total"><td>全品牌合計</td><td class="r">${fmt(ta)}</td><td class="r">${fmt(tt)}</td><td class="r" style="color:${rateColor(tr)};">${tr}%</td><td class="r" style="color:${td>=0?'#27500A':'#E24B4A'};font-size:12px;">${(td>=0?'+':'')+fmtK(td)}</td></tr>
+      </tbody>
+    </table></div></div>`;
+}
+
+function renderQuarterTable(q) {
+  const qLabel='Q'+q, months=[q*3-2,q*3-1,q*3];
+  const vb = currentProfile.role==='admin' ? allBrands : allBrands.filter(b=>currentProfile.brands?.includes(b.id));
+  const rows = vb.map(b=>{
+    const target=targetsCache[b.id]?.[qLabel]||0;
+    const actual=months.reduce((s,m)=>s+getSales(b.id,m),0);
+    const rate=target>0?Math.round(actual/target*100):0, diff=actual-target;
+    return {b,target,actual,rate,diff,monthAmts:months.map(m=>getSales(b.id,m))};
+  });
+  const ta=rows.reduce((s,r)=>s+r.actual,0), tt=rows.reduce((s,r)=>s+r.target,0);
+  const tr=tt>0?Math.round(ta/tt*100):0, td=ta-tt, pass=rows.filter(r=>r.rate>=80&&r.actual>0).length;
+
+  document.getElementById('quarterTableWrap').innerHTML=`
+    <div class="metrics-grid" style="margin-bottom:1.25rem;">
+      <div class="metric"><div class="metric-label">Q${q} 實際營業額</div><div class="metric-value">${fmtK(ta)}</div></div>
+      <div class="metric"><div class="metric-label">Q${q} 目標</div><div class="metric-value">${fmtK(tt)}</div></div>
+      <div class="metric"><div class="metric-label">整體達成率</div><div class="metric-value" style="color:${rateColor(tr)};">${tr}%</div><div class="metric-sub" style="color:${td>=0?'#27500A':'#E24B4A'};">${td>=0?'超出':'差距'} ${fmtK(Math.abs(td))}</div></div>
+      <div class="metric"><div class="metric-label">達標品牌數</div><div class="metric-value">${pass} / ${vb.length}</div></div>
+    </div>
+    <div class="card"><div class="card-header"><span class="card-title">Q${q} 各品牌明細</span></div>
+    <div style="overflow-x:auto;"><table class="data-table" style="min-width:560px;">
+      <colgroup><col style="width:16%"><col style="width:11%"><col style="width:11%"><col style="width:11%"><col style="width:13%"><col style="width:12%"><col style="width:14%"></colgroup>
+      <thead><tr><th>品牌</th>${months.map(m=>`<th class="r">${m}月</th>`).join('')}<th class="r">季合計</th><th class="r">季目標</th><th class="r">達成率</th></tr></thead>
+      <tbody>
+        ${rows.map(({b,actual,target,rate,diff,monthAmts})=>`<tr>
+          <td><div style="display:flex;align-items:center;gap:7px;"><span class="brand-dot" style="background:${b.color};"></span>${b.name}</div></td>
+          ${monthAmts.map(a=>`<td class="r" style="color:var(--text2);font-size:12px;">${a?fmtK(a):'—'}</td>`).join('')}
+          <td class="r" style="font-weight:500;">${actual?fmt(actual):'—'}</td>
+          <td class="r" style="color:var(--text2);">${fmt(target)}</td>
+          <td class="r"><div class="rate-block">
+            <span style="font-size:13px;font-weight:500;color:${actual?rateColor(rate):'var(--text3)'};">${actual?rate+'%':'—'}</span>
+            <div class="mini-bar-wrap"><div class="mini-bar" style="width:${Math.min(rate,100)}%;background:${barColor(rate)};"></div></div>
+          </div></td>
+        </tr>`).join('')}
+        <tr class="total"><td>全品牌合計</td>${months.map(m=>`<td class="r" style="font-size:12px;">${fmtK(vb.reduce((s,b)=>s+getSales(b.id,m),0))}</td>`).join('')}<td class="r">${fmt(ta)}</td><td class="r">${fmt(tt)}</td><td class="r" style="color:${rateColor(tr)};">${tr}%</td></tr>
+      </tbody>
+    </table></div></div>`;
+}
+
+// ══ TREND ══
+function renderTrendFilters(brands) {
+  const wrap = document.getElementById('trendFilters');
+  wrap.innerHTML = `<button class="filter-btn active" onclick="setTF('all',this)">全部</button>`+
+    brands.map(b=>`<button class="filter-btn" onclick="setTF('${b.id}',this)">${b.name}</button>`).join('');
+}
+
+window.setTF = (f, btn) => {
+  trendFilter=f;
+  document.querySelectorAll('#trendFilters .filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTrend();
+};
+
+function renderTrend() {
+  const vb = currentProfile.role==='admin' ? allBrands : allBrands.filter(b=>currentProfile.brands?.includes(b.id));
+  const labels=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const months=[1,2,3,4,5,6,7,8,9,10,11,12];
+  const isDark=matchMedia('(prefers-color-scheme:dark)').matches;
+  const gc=isDark?'rgba(255,255,255,.08)':'rgba(0,0,0,.06)', tc=isDark?'#6b6b66':'#9b9b96';
+
+  if(trendChartInst) trendChartInst.destroy();
+  const filtered = trendFilter==='all' ? vb : vb.filter(b=>b.id===trendFilter);
+  trendChartInst = new Chart(document.getElementById('trendChart'),{
+    type:'line',
+    data:{labels, datasets:filtered.map(b=>({
+      label:b.name, data:months.map(m=>getSales(b.id,m)||null),
+      borderColor:b.color, backgroundColor:b.color+'22',
+      tension:0.4, fill:trendFilter!=='all', pointBackgroundColor:b.color, pointRadius:4, borderWidth:2, spanGaps:false
+    }))},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{font:{size:11},color:tc,boxWidth:12}}},
+      scales:{y:{ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'K',color:tc,font:{size:11}},grid:{color:gc}},x:{ticks:{color:tc,font:{size:11}},grid:{display:false}}}
+    }
+  });
+
+  if(totalChartInst) totalChartInst.destroy();
+  totalChartInst = new Chart(document.getElementById('totalChart'),{
+    type:'bar',
+    data:{labels, datasets:[{label:'全品牌合計',data:months.map(m=>vb.reduce((s,b)=>s+getSales(b.id,m),0)||null),backgroundColor:'#185FA5',borderRadius:4,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{y:{ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'K',color:tc,font:{size:11}},grid:{color:gc}},x:{ticks:{color:tc,font:{size:11}},grid:{display:false}}}
+    }
+  });
+}
+
+// ══ CALENDAR ══
+function renderCalBrandLegend(brands) {
+  document.getElementById('calBrandLegend').innerHTML = brands.map(b=>
+    `<div class="legend-item"><div class="legend-dot" style="background:${b.color};"></div>${b.name}</div>`
+  ).join('');
+}
+
+function renderCalendar() {
+  document.getElementById('calMonthLabel').textContent = `${calYear}年 ${calMonth+1}月`;
+  const grid=document.getElementById('calGrid');
+  const headers=Array.from(grid.querySelectorAll('.cal-header'));
+  grid.innerHTML=''; headers.forEach(h=>grid.appendChild(h));
+
+  const firstDay=new Date(calYear,calMonth,1).getDay();
+  const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  const today=new Date();
+  const vb = currentProfile.role==='admin' ? allBrands : allBrands.filter(b=>currentProfile.brands?.includes(b.id));
+  const vbIds = vb.map(b=>b.id);
+
+  for(let i=0;i<firstDay;i++){const c=document.createElement('div');c.className='cal-cell empty';grid.appendChild(c);}
+
+  for(let d=1;d<=daysInMonth;d++){
+    const key=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayEvs=eventsCache.filter(e=>e.date===key&&vbIds.includes(e.brand));
+    const isToday=today.getFullYear()===calYear&&today.getMonth()===calMonth&&today.getDate()===d;
+    const isSel=calSelected===key;
+    const cell=document.createElement('div');
+    cell.className='cal-cell'+(isToday?' today':'')+(isSel?' selected':'');
+    let html=`<div class="cal-day-num">${d}</div>`;
+    dayEvs.slice(0,2).forEach(ev=>{
+      const br=getBrand(ev.brand)||{color:'#888',bg:'#eee',text:'#444'};
+      const st=STATUS_META[ev.status]||STATUS_META.upcoming;
+      const isGroup=ev.type==='開團';
+      html+=`<div class="ev-pill${isGroup?' group':''}" style="background:${br.bg};color:${br.text};">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${isGroup?'●':'▪'} ${br.name}</span>
+        <span style="font-size:11px;flex-shrink:0;">${st.sym}</span>
+      </div>`;
+    });
+    if(dayEvs.length>2) html+=`<div style="font-size:10px;color:var(--text3);padding:1px 3px;">+${dayEvs.length-2}</div>`;
+    cell.innerHTML=html;
+    if(dayEvs.length>0) cell.onclick=()=>openCalDetail(key,d,dayEvs);
+    grid.appendChild(cell);
+  }
+}
+
+function openCalDetail(key,d,dayEvs){
+  calSelected=key; renderCalendar();
+  const panel=document.getElementById('calDetailPanel');
+  const total=dayEvs.reduce((s,e)=>s+(e.amount||0),0);
+  const dateStr=`${calYear}年${calMonth+1}月${d}日`;
+  panel.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <span style="font-size:14px;font-weight:500;color:var(--text);">${dateStr} · ${dayEvs.length} 筆記錄</span>
+      <button class="btn" onclick="closeCalDetail()">✕</button>
+    </div>
+    ${dayEvs.map(ev=>{
+      const br=getBrand(ev.brand)||{color:'#888',bg:'#eee',text:'#444',name:'未知'};
+      const st=STATUS_META[ev.status]||STATUS_META.upcoming;
+      const isGroup=ev.type==='開團';
+      return `<div class="ev-card" style="background:${br.bg};border-left-color:${br.color};">
+        <div class="ev-top">
+          <div>
+            <div class="ev-brand" style="color:${br.text};">${br.name}</div>
+            <span class="ev-badge" style="background:${isGroup?br.color:'transparent'};color:${isGroup?'#fff':br.text};border:0.5px solid ${br.color};">${ev.type}</span>
+            <span class="ev-badge" style="background:${st.bg};color:${st.fg};">${st.sym} ${st.label}</span>
+          </div>
+          <div>
+            <div class="ev-amount" style="color:${br.text};">${fmt(ev.amount)}</div>
+            <div class="ev-note">${ev.note||''}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}
+    ${dayEvs.length>1?`<div class="ev-total"><span style="font-size:12px;color:var(--text2);">當日合計</span><span style="font-size:16px;font-weight:600;color:var(--text);">${fmt(total)}</span></div>`:''}`;
+  panel.style.display='block';
+}
+
+window.closeCalDetail=()=>{calSelected=null;document.getElementById('calDetailPanel').style.display='none';renderCalendar();};
+window.calPrev=()=>{calMonth--;if(calMonth<0){calMonth=11;calYear--;}calSelected=null;document.getElementById('calDetailPanel').style.display='none';renderCalendar();};
+window.calNext=()=>{calMonth++;if(calMonth>11){calMonth=0;calYear++;}calSelected=null;document.getElementById('calDetailPanel').style.display='none';renderCalendar();};
+
+// ══ ENTRY ══
+window.submitEntry = async () => {
+  const brand=document.getElementById('e-brand').value;
+  const month=parseInt(document.getElementById('e-month').value);
+  const period=document.getElementById('e-period').value;
+  const amount=parseInt(document.getElementById('e-amount').value);
+  const note=document.getElementById('e-note').value;
+  if(!brand||!amount||amount<=0){toast('請填寫品牌及有效的營業額');return;}
+  try {
+    await addDoc(collection(db,'sales'),{
+      brandId:brand, month, period, amount, note,
+      submittedBy:currentUser.uid,
+      submitterName:currentProfile.name||currentUser.email,
+      createdAt:serverTimestamp(), year:parseInt(document.getElementById('e-year').value)
+    });
+    document.getElementById('e-amount').value='';
+    document.getElementById('e-note').value='';
+    toast('✓ 提交成功，資料已更新！');
+  } catch(e){ toast('提交失敗，請稍後再試'); }
+};
+
+window.submitModalEntry = async () => {
+  const brand=document.getElementById('me-brand').value;
+  const month=parseInt(document.getElementById('me-month').value);
+  const amount=parseInt(document.getElementById('me-amount').value);
+  const note=document.getElementById('me-note').value;
+  if(!amount||amount<=0){toast('請填寫有效的營業額');return;}
+  try {
+    await addDoc(collection(db,'sales'),{
+      brandId:brand, month, period:document.getElementById('me-period').value,
+      amount, note, submittedBy:currentUser.uid,
+      submitterName:currentProfile.name||currentUser.email,
+      createdAt:serverTimestamp(), year:2026
+    });
+    document.getElementById('me-amount').value='';
+    document.getElementById('me-note').value='';
+    closeModal('entryModal');
+    toast('✓ 提交成功！');
+  } catch(e){ toast('提交失敗'); }
+};
+
+window.submitEvent = async () => {
+  const brand=document.getElementById('ev-brand').value;
+  const type=document.getElementById('ev-type').value;
+  const date=document.getElementById('ev-date').value;
+  const status=document.getElementById('ev-status').value;
+  const amount=parseInt(document.getElementById('ev-amount').value)||0;
+  const note=document.getElementById('ev-note').value||'新增活動';
+  if(!date){toast('請選擇日期');return;}
+  try {
+    await addDoc(collection(db,'events'),{brand,type,date,status,amount,note,createdAt:serverTimestamp()});
+    document.getElementById('ev-note').value='';
+    document.getElementById('ev-amount').value='';
+    closeModal('eventModal');
+    toast('✓ 活動已新增！');
+  } catch(e){ toast('新增失敗'); }
+};
+
+function renderRecentEntries(entries) {
+  const el=document.getElementById('recentEntries');
+  if(!entries||!entries.length){el.innerHTML='<p style="font-size:13px;color:var(--text3);text-align:center;padding:2rem 0;">尚無記錄</p>';return;}
+  el.innerHTML=entries.map(r=>{
+    const b=getBrand(r.brandId)||{color:'#888',name:'未知'};
+    const mLabel=r.month?r.month+'月'+(r.period==='mid'?'月中':'月底'):'—';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">
+      <div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+          <span class="brand-dot" style="background:${b.color};"></span>
+          <span style="font-size:13px;font-weight:500;color:var(--text);">${b.name}</span>
+          <span style="font-size:10px;padding:1px 6px;border-radius:99px;background:var(--bg2);color:var(--text2);">${mLabel}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text3);">${r.note||'—'} · ${r.submitterName||'—'}</div>
+      </div>
+      <div style="font-size:14px;font-weight:600;color:var(--text);">${fmt(r.amount)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ══ ADMIN ══
+function renderAdminBrandCheckboxes() {
+  document.getElementById('newUserBrands').innerHTML = allBrands.map(b=>
+    `<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;">
+      <input type="checkbox" value="${b.id}" style="cursor:pointer;"> ${b.name}
+    </label>`
+  ).join('');
+  const ts=document.getElementById('tgt-brand');
+  if(ts) ts.innerHTML=allBrands.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+}
+
+window.createUser = async () => {
+  const name=document.getElementById('newUserName').value.trim();
+  const email=document.getElementById('newUserEmail').value.trim();
+  const pwd=document.getElementById('newUserPwd').value;
+  const brands=[...document.querySelectorAll('#newUserBrands input:checked')].map(i=>i.value);
+  if(!name||!email||!pwd){toast('請填寫所有欄位');return;}
+  try {
+    const cred=await createUserWithEmailAndPassword(auth,email,pwd);
+    await setDoc(doc(db,'users',cred.user.uid),{name,email,role:'staff',brands,createdAt:serverTimestamp()});
+    document.getElementById('newUserName').value='';
+    document.getElementById('newUserEmail').value='';
+    document.getElementById('newUserPwd').value='';
+    document.querySelectorAll('#newUserBrands input').forEach(i=>i.checked=false);
+    toast('✓ 帳號建立成功！');
+    loadUserList();
+  } catch(e){
+    if(e.code==='auth/email-already-in-use') toast('此電子郵件已被使用');
+    else toast('建立失敗：'+e.message);
+  }
+};
+
+async function loadUserList(){
+  const snap=await getDocs(collection(db,'users'));
+  const el=document.getElementById('userList');
+  if(!el) return;
+  if(snap.empty){el.innerHTML='<p style="font-size:13px;color:var(--text3);">尚無員工帳號</p>';return;}
+  el.innerHTML=snap.docs.map(d=>{
+    const u=d.data();
+    const brandNames=(u.brands||[]).map(id=>getBrand(id)?.name||id).join('、')||'無';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">
+      <div>
+        <div style="font-size:13px;font-weight:500;color:var(--text);">${u.name}</div>
+        <div style="font-size:11px;color:var(--text3);">${u.email} · 負責：${brandNames}</div>
+      </div>
+      <span style="font-size:10px;padding:2px 8px;border-radius:99px;background:${u.role==='admin'?'#E6F1FB':'#EAF3DE'};color:${u.role==='admin'?'#0C447C':'#27500A'};">${u.role==='admin'?'管理者':'業務'}</span>
+    </div>`;
+  }).join('');
+}
+
+window.saveTarget = async () => {
+  const brandId=document.getElementById('tgt-brand').value;
+  const quarter=document.getElementById('tgt-quarter').value;
+  const amount=parseInt(document.getElementById('tgt-amount').value);
+  if(!amount||amount<=0){toast('請填寫有效金額');return;}
+  const q=query(collection(db,'targets'),where('brandId','==',brandId),where('quarter','==',quarter));
+  const snap=await getDocs(q);
+  if(!snap.empty){
+    await setDoc(snap.docs[0].ref,{brandId,quarter,amount});
+  } else {
+    await addDoc(collection(db,'targets'),{brandId,quarter,amount});
+  }
+  if(!targetsCache[brandId]) targetsCache[brandId]={};
+  targetsCache[brandId][quarter]=amount;
+  toast('✓ 目標已儲存！');
+  renderOverview(); renderMonthTable(reportMonth); renderQuarterTable(reportQuarter);
+};
+
+// ══ NAV ══
+const pageTitles={overview:'品牌進度總覽',report:'月 / 季報表',trend:'銷售趨勢',calendar:'開團日曆',entry:'輸入營業額',admin:'管理設定'};
+window.showPage=(id,el)=>{
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('pageTitle').textContent=pageTitles[id]||id;
+  if(id==='trend') renderTrend();
+};
+
+</script>
+</body>
+</html>
