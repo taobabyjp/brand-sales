@@ -4,37 +4,2121 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>品牌銷售追蹤系統</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg:#ffffff; --bg2:#f5f5f3; --bg3:#efefec;
-    --text:#1a1a18; --text2:#6b6b66; --text3:#9b9b96;
-    --border:rgba(0,0,0,0.1); --border2:rgba(0,0,0,0.18);
-    --radius:8px; --radius-lg:12px; --sidebar-w:220px;
-    --blue:#185FA5; --green:#27500A; --red:#791F1F; --amber:#633806;
-  }
-  @media (prefers-color-scheme:dark) {
-    :root {
-      --bg:#1c1c1a; --bg2:#252523; --bg3:#2e2e2b;
-      --text:#e8e8e2; --text2:#9b9b96; --text3:#6b6b66;
-      --border:rgba(255,255,255,0.1); --border2:rgba(255,255,255,0.18);
-    }
-  }
-  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js">
+// ── EDIT & DELETE ──
+let deleteTarget={type:null,id:null};
 
-  /* ── LOGIN ── */
-  #loginScreen { display:flex; align-items:center; justify-content:center; min-height:100vh; background:var(--bg2); }
-  .login-box { background:var(--bg); border:0.5px solid var(--border2); border-radius:var(--radius-lg); padding:2rem; width:360px; max-width:95vw; }
-  .login-logo { font-size:16px; font-weight:600; color:var(--text); margin-bottom:4px; }
-  .login-sub { font-size:12px; color:var(--text3); margin-bottom:1.5rem; }
-  .form-group { margin-bottom:1rem; }
-  .form-label { font-size:12px; color:var(--text2); margin-bottom:5px; display:block; }
-  .form-input { width:100%; padding:9px 11px; border:0.5px solid var(--border2); border-radius:var(--radius); background:var(--bg2); color:var(--text); font-size:13px; }
-  .form-input:focus { outline:none; border-color:var(--blue); }
-  .btn { padding:8px 16px; border-radius:var(--radius); border:0.5px solid var(--border2); background:transparent; font-size:13px; color:var(--text2); cursor:pointer; transition:background .12s; }
-  .btn:hover { background:var(--bg2); }
-  .btn.primary { background:var(--text); color:var(--bg); border-color:var(--text); width:100%; padding:10px; font-size:13px; margin-top:4px; }
+window.openEditSale=(id,brandId,amount,note,month,period)=>{
+  document.getElementById('edit-sale-id').value=id;
+  document.getElementById('edit-sale-month').value=month+'月';
+  document.getElementById('edit-sale-period').value=period==='mid'?'月中':'月底';
+  document.getElementById('edit-sale-amount').value=amount;
+  document.getElementById('edit-sale-note').value=note;
+  openModal('editSaleModal');
+};
+
+window.saveEditSale=async()=>{
+  const id=document.getElementById('edit-sale-id').value;
+  const amount=parseInt(document.getElementById('edit-sale-amount').value);
+  const note=document.getElementById('edit-sale-note').value;
+  if(!id){showToast('找不到記錄 ID');return;}
+  if(!amount||amount<=0){showToast('請填寫有效的營業額');return;}
+  try{
+    const ref=doc(db,'sales',id);
+    await updateDoc(ref,{amount,note});
+    await writeAuditLog('edit','sale',id,`修改營業額為 ${amount} 元，備註：${note||'—'}`);
+    closeModal('editSaleModal');showToast('✓ 記錄已更新！');
+  }catch(e){console.error(e);showToast('更新失敗：'+e.message);}
+};
+
+window.openEditKol=id=>{
+  const kol=kolCache.find(k=>k.id===id);
+  if(!kol)return;
+  document.getElementById('edit-kol-id').value=id;
+  document.getElementById('edit-kol-name').value=kol.name||'';
+  document.getElementById('edit-kol-platform').value=kol.platform||'IG';
+  document.getElementById('edit-kol-followers').value=kol.followers||0;
+  document.getElementById('edit-kol-cost').value=kol.cost||0;
+  document.getElementById('edit-kol-note').value=kol.note||'';
+  openModal('editKolModal');
+};
+
+window.saveEditKol=async()=>{
+  const id=document.getElementById('edit-kol-id').value;
+  const name=document.getElementById('edit-kol-name').value.trim();
+  const platform=document.getElementById('edit-kol-platform').value;
+  const followers=parseInt(document.getElementById('edit-kol-followers').value)||0;
+  const cost=parseInt(document.getElementById('edit-kol-cost').value)||0;
+  const note=document.getElementById('edit-kol-note').value;
+  if(!id){showToast('找不到記錄 ID');return;}
+  if(!name){showToast('請填寫名稱');return;}
+  try{
+    const ref=doc(db,'kols',id);
+    await updateDoc(ref,{name,platform,followers,cost,note});
+    await writeAuditLog('edit','kol',id,`修改網紅資料：${name} / ${platform}`);
+    closeModal('editKolModal');showToast('✓ 網紅資料已更新！');
+  }catch(e){console.error(e);showToast('更新失敗：'+e.message);}
+};
+
+window.openEditBrand=id=>{
+  const b=getBrand(id);if(!b)return;
+  document.getElementById('edit-brand-id').value=id;
+  document.getElementById('edit-brand-name').value=b.name||'';
+  document.getElementById('edit-brand-color').value=b.color||'';
+  document.getElementById('edit-brand-preview').style.background=b.color||'#ccc';
+  openModal('editBrandModal');
+};
+document.getElementById('edit-brand-color')?.addEventListener('input',e=>{
+  document.getElementById('edit-brand-preview').style.background=e.target.value;
+});
+
+window.saveEditBrand=async()=>{
+  const id=document.getElementById('edit-brand-id').value;
+  const name=document.getElementById('edit-brand-name').value.trim();
+  const color=document.getElementById('edit-brand-color').value.trim();
+  if(!id){showToast('找不到品牌 ID');return;}
+  if(!name){showToast('請填寫品牌名稱');return;}
+  try{
+    const ref=doc(db,'brands',id);
+    await updateDoc(ref,{name,color});
+    await writeAuditLog('edit','brand',id,`修改品牌資料：${name}`);
+    closeModal('editBrandModal');showToast('✓ 品牌資料已更新！');
+  }catch(e){console.error(e);showToast('更新失敗：'+e.message);}
+};
+
+window.confirmDelete=(type,id)=>{
+  deleteTarget={type,id};
+  const msgs={sale:'確定要刪除這筆營業額記錄嗎？此操作無法復原。',kol:'確定要刪除這個網紅/社團嗎？相關合作記錄不會被刪除。',event:'確定要刪除這個開團活動嗎？此操作無法復原。'};
+  document.getElementById('confirmDeleteMsg').textContent=msgs[type]||'確定要刪除嗎？此操作無法復原。';
+  openModal('confirmDeleteModal');
+};
+
+window.executeDelete=async()=>{
+  const{type,id}=deleteTarget;
+  if(!type||!id)return;
+  try{
+    const colName=type==='sale'?'sales':type==='kol'?'kols':'events';
+    const delRef=doc(db,colName,id);
+    await deleteDoc(delRef);
+    await writeAuditLog('delete',type,id,`刪除${type==='sale'?'營業額記錄':type==='kol'?'網紅資料':'開團活動'}`);
+    closeModal('confirmDeleteModal');
+    showToast('✓ 已刪除');
+    deleteTarget={type:null,id:null};
+  }catch(e){showToast('刪除失敗：'+e.message);}
+};
+
+// ── AUDIT LOG ──
+let auditCache=[], auditFilter='all', auditUnsubscribe=null;
+
+async function writeAuditLog(action, targetType, targetId, description){
+  try{
+    await addDoc(collection(db,'auditLogs'),{
+      action, targetType, targetId, description,
+      operatorUid: currentUser.uid,
+      operatorName: currentProfile.name||currentUser.email,
+      createdAt: serverTimestamp(),
+      timestamp: new Date().toISOString(),
+    });
+  }catch(e){ console.error('Audit log failed:',e); }
+}
+
+function listenAuditLog(){
+  if(auditUnsubscribe) auditUnsubscribe();
+  const q=query(collection(db,'auditLogs'),orderBy('createdAt','desc'));
+  auditUnsubscribe=onSnapshot(q,snap=>{
+    auditCache=snap.docs.map(d=>({...d.data(),id:d.id}));
+    if(document.getElementById('page-audit').classList.contains('active')) renderAuditLog();
+  });
+}
+
+window.setAuditFilter=(f,btn)=>{
+  auditFilter=f;
+  document.querySelectorAll('#page-audit .filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderAuditLog();
+};
+
+function renderAuditLog(){
+  if(!auditUnsubscribe) listenAuditLog();
+  const filtered=auditFilter==='all'?auditCache:auditCache.filter(a=>a.action===auditFilter);
+  const today=new Date().toDateString();
+  const todayCount=auditCache.filter(a=>a.timestamp&&new Date(a.timestamp).toDateString()===today).length;
+  const edits=auditCache.filter(a=>a.action==='edit').length;
+  const deletes=auditCache.filter(a=>a.action==='delete').length;
+
+  document.getElementById('al-total').textContent=auditCache.length;
+  document.getElementById('al-today').textContent=todayCount;
+  document.getElementById('al-edits').textContent=edits;
+  document.getElementById('al-deletes').textContent=deletes;
+
+  const actionMeta={
+    edit:  {label:'編輯', bg:'#E6F1FB', fg:'#0C447C'},
+    delete:{label:'刪除', bg:'#FCEBEB', fg:'#791F1F'},
+    create:{label:'新增', bg:'#EAF3DE', fg:'#27500A'},
+  };
+  const typeMeta={
+    sale: '營業額',kol:'網紅',brand:'品牌',event:'活動',
+  };
+
+  const el=document.getElementById('auditList');
+  if(!filtered.length){
+    el.innerHTML='<p style="font-size:13px;color:var(--text3);text-align:center;padding:2rem 0;">尚無操作記錄</p>';
+    return;
+  }
+  el.innerHTML=filtered.map(a=>{
+    const am=actionMeta[a.action]||{label:a.action,bg:'#F1EFE8',fg:'#5F5E5A'};
+    const tm=typeMeta[a.targetType]||a.targetType;
+    const ts=a.timestamp?new Date(a.timestamp).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+    return`<div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:0.5px solid var(--border);">
+      <span style="font-size:11px;padding:3px 8px;border-radius:99px;background:${am.bg};color:${am.fg};flex-shrink:0;margin-top:1px;">${am.label}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;color:var(--text);margin-bottom:2px;">${a.description||'—'}</div>
+        <div style="font-size:11px;color:var(--text3);">${tm} · 操作者：${a.operatorName||'—'}</div>
+      </div>
+      <span style="font-size:11px;color:var(--text3);flex-shrink:0;">${ts}</span>
+    </div>`;
+  }).join('');
+}
+</script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#fff;--bg2:#f5f5f3;--bg3:#efefec;
+  --text:#1a1a18;--text2:#6b6b66;--text3:#9b9b96;
+  --border:rgba(0,0,0,0.1);--border2:rgba(0,0,0,0.18);
+  --radius:8px;--radius-lg:12px;--sw:220px;
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#1c1c1a;--bg2:#252523;--bg3:#2e2e2b;
+  --text:#e8e8e2;--text2:#9b9b96;--text3:#6b6b66;
+  --border:rgba(255,255,255,0.1);--border2:rgba(255,255,255,0.18);
+}}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+/* LOGIN */
+#loginScreen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg2);}
+.login-box{background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--radius-lg);padding:2rem;width:360px;max-width:95vw;}
+.login-logo{font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px;}
+.login-sub{font-size:12px;color:var(--text3);margin-bottom:1.5rem;}
+.login-err{font-size:12px;color:#E24B4A;margin-top:8px;text-align:center;min-height:18px;}
+
+/* FORMS */
+.form-group{margin-bottom:1rem;}
+.form-label{font-size:12px;color:var(--text2);margin-bottom:5px;display:block;}
+.form-input{width:100%;padding:9px 11px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:13px;}
+.form-input:focus{outline:none;border-color:#185FA5;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+/* BUTTONS */
+.btn{padding:8px 16px;border-radius:var(--radius);border:0.5px solid var(--border2);background:transparent;font-size:13px;color:var(--text2);cursor:pointer;transition:background .12s;}
+.btn:hover{background:var(--bg2);}
+.btn.primary{background:var(--text);color:var(--bg);border-color:var(--text);}
+.btn.primary:hover{opacity:.85;}
+.btn.danger{color:#E24B4A;border-color:#E24B4A;}
+.btn.sm{padding:4px 10px;font-size:11px;}
+
+/* APP */
+#appScreen{display:none;min-height:100vh;}
+#appScreen.show{display:flex;}
+.app-layout{display:flex;flex:1;}
+
+/* SIDEBAR */
+.sidebar{width:var(--sw);min-height:100vh;background:var(--bg2);border-right:0.5px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;}
+.sidebar-logo{padding:1.25rem 1rem 1rem;border-bottom:0.5px solid var(--border);}
+.sidebar-logo p{font-size:13px;font-weight:600;color:var(--text);}
+.sidebar-logo span{font-size:11px;color:var(--text3);}
+.sidebar-nav{padding:.5rem 0;flex:1;}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 1rem;font-size:13px;color:var(--text2);cursor:pointer;transition:background .12s,color .12s;}
+.nav-item:hover{background:var(--bg3);color:var(--text);}
+.nav-item.active{background:var(--bg3);color:var(--text);font-weight:500;}
+.nav-icon{width:16px;text-align:center;font-size:13px;}
+.sidebar-user{padding:.75rem 1rem;border-top:0.5px solid var(--border);}
+.user-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.user-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;background:#E6F1FB;color:#0C447C;}
+.user-name{font-size:12px;font-weight:500;color:var(--text);}
+.user-email{font-size:10px;color:var(--text3);}
+.role-badge{font-size:10px;padding:2px 7px;border-radius:99px;display:inline-block;}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:.85rem 1.5rem;border-bottom:0.5px solid var(--border);background:var(--bg);flex-wrap:wrap;gap:8px;}
+.topbar-title{font-size:15px;font-weight:500;color:var(--text);}
+.topbar-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.content{flex:1;padding:1.5rem;overflow-y:auto;}
+.page{display:none;}
+.page.active{display:block;}
+
+/* METRICS */
+.metrics-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:1.25rem;}
+.metric{background:var(--bg2);border-radius:var(--radius);padding:.9rem 1rem;}
+.metric-label{font-size:11px;color:var(--text3);margin-bottom:5px;}
+.metric-value{font-size:20px;font-weight:600;color:var(--text);}
+.metric-sub{font-size:11px;margin-top:3px;color:var(--text3);}
+.card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:1.25rem;margin-bottom:1.25rem;}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;}
+.card-title{font-size:13px;font-weight:500;color:var(--text2);}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem;}
+.three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.25rem;margin-bottom:1.25rem;}
+
+/* BRAND CARDS */
+.brand-card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:1.1rem 1.25rem;margin-bottom:10px;}
+.brand-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.75rem;}
+.brand-name-row{display:flex;align-items:center;gap:8px;}
+.brand-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.brand-title{font-size:14px;font-weight:500;color:var(--text);}
+.brand-meta{font-size:11px;color:var(--text3);margin-top:2px;}
+.brand-actual{font-size:18px;font-weight:600;}
+.brand-target{font-size:11px;color:var(--text3);}
+.progress-bar{height:6px;background:var(--bg3);border-radius:99px;overflow:hidden;margin:5px 0 8px;}
+.progress-fill{height:100%;border-radius:99px;transition:width .6s ease;}
+.progress-label{display:flex;justify-content:space-between;font-size:11px;color:var(--text3);}
+.brand-stats{display:flex;gap:16px;flex-wrap:wrap;}
+.brand-stat{font-size:11px;color:var(--text3);}
+.brand-stat strong{color:var(--text2);font-weight:500;}
+.status-pill{font-size:10px;padding:2px 8px;border-radius:99px;}
+
+/* TABLE */
+.data-table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;}
+.data-table th{font-size:11px;font-weight:500;color:var(--text3);padding:7px 10px;border-bottom:0.5px solid var(--border);text-align:left;}
+.data-table th.r{text-align:right;}
+.data-table td{padding:11px 10px;border-bottom:0.5px solid var(--border);color:var(--text);vertical-align:middle;}
+.data-table td.r{text-align:right;}
+.data-table tr:last-child td{border-bottom:none;}
+.data-table tr.total td{font-weight:600;background:var(--bg2);}
+.rate-block{display:flex;flex-direction:column;align-items:flex-end;gap:3px;}
+.mini-bar-wrap{width:70px;height:4px;background:var(--bg3);border-radius:99px;overflow:hidden;}
+.mini-bar{height:100%;border-radius:99px;}
+
+/* CALENDAR */
+.cal-topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:10px;}
+.cal-nav{display:flex;align-items:center;gap:10px;}
+.cal-month-label{font-size:15px;font-weight:500;color:var(--text);min-width:100px;text-align:center;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin-bottom:1.25rem;}
+.cal-header{text-align:center;font-size:11px;color:var(--text3);padding:4px 0;font-weight:500;}
+.cal-cell{min-height:90px;background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius);padding:5px;cursor:pointer;transition:border-color .15s;}
+.cal-cell:hover{border-color:var(--border2);}
+.cal-cell.empty{background:transparent;border-color:transparent;cursor:default;}
+.cal-cell.today{border-color:#185FA5;}
+.cal-cell.selected{border-color:var(--text);border-width:1px;}
+.cal-day-num{font-size:11px;font-weight:500;color:var(--text3);margin-bottom:3px;}
+.cal-cell.today .cal-day-num{color:#185FA5;}
+.ev-pill{font-size:10px;padding:2px 5px;border-radius:4px;margin-bottom:2px;display:flex;flex-direction:column;gap:1px;overflow:hidden;}
+.ev-pill.group{border-radius:99px;}
+.ev-pill-top{display:flex;align-items:center;justify-content:space-between;gap:2px;}
+.ev-influencer{font-size:9px;opacity:.8;padding-left:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.legend-bar{display:flex;gap:12px;flex-wrap:wrap;background:var(--bg2);padding:.65rem 1rem;border-radius:var(--radius);margin-bottom:1rem;align-items:center;}
+.legend-sep{width:0.5px;height:16px;background:var(--border2);}
+.legend-item{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);}
+.legend-dot{width:10px;height:10px;border-radius:50%;}
+
+/* DETAIL */
+.detail-panel{background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--radius-lg);padding:1.25rem;margin-bottom:1.25rem;}
+.ev-card{border-radius:var(--radius);padding:.75rem 1rem;margin-bottom:8px;border-left:3px solid transparent;}
+.ev-top{display:flex;justify-content:space-between;align-items:flex-start;}
+.ev-brand{font-size:13px;font-weight:500;margin-bottom:4px;}
+.ev-badge{font-size:10px;padding:2px 7px;border-radius:99px;margin-right:4px;}
+.ev-amount{font-size:20px;font-weight:600;text-align:right;}
+.ev-note{font-size:11px;color:var(--text3);text-align:right;margin-top:2px;}
+.ev-total{display:flex;justify-content:space-between;align-items:center;padding:.7rem 1rem;background:var(--bg2);border-radius:var(--radius);margin-top:10px;}
+
+/* CHART */
+.chart-wrap{position:relative;height:240px;}
+.filter-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem;}
+.filter-btn{font-size:11px;padding:4px 11px;border-radius:99px;border:0.5px solid var(--border);background:transparent;cursor:pointer;color:var(--text2);}
+.filter-btn.active{background:var(--bg3);color:var(--text);border-color:var(--border2);font-weight:500;}
+
+/* TABS */
+.tab-row{display:flex;gap:6px;margin-bottom:1.25rem;}
+.tab{padding:6px 16px;border-radius:99px;border:0.5px solid var(--border);background:transparent;font-size:13px;cursor:pointer;color:var(--text2);}
+.tab.active{background:var(--bg3);color:var(--text);border-color:var(--border2);font-weight:500;}
+.period-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center;}
+.period-label{font-size:12px;color:var(--text3);}
+.period-btn{padding:4px 12px;border-radius:var(--radius);border:0.5px solid var(--border);background:transparent;font-size:12px;cursor:pointer;color:var(--text2);}
+.period-btn.active{background:var(--bg3);color:var(--text);border-color:var(--border2);}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--bg);border-radius:var(--radius-lg);padding:1.5rem;width:460px;max-width:95vw;border:0.5px solid var(--border2);max-height:90vh;overflow-y:auto;}
+.modal-title{font-size:15px;font-weight:500;color:var(--text);margin-bottom:1.25rem;}
+.modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:1.25rem;}
+
+/* INFLUENCER */
+.kol-card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:1rem 1.25rem;margin-bottom:10px;cursor:pointer;transition:border-color .15s;}
+.kol-card:hover{border-color:var(--border2);}
+.kol-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+.kol-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;background:#EEEDFE;color:#3C3489;}
+.kol-name{font-size:14px;font-weight:500;color:var(--text);}
+.kol-meta{font-size:11px;color:var(--text3);margin-top:2px;}
+.kol-stats{display:flex;gap:12px;flex-wrap:wrap;}
+.kol-stat{font-size:11px;color:var(--text3);}
+.kol-stat strong{color:var(--text2);font-weight:500;}
+.platform-badge{font-size:10px;padding:2px 7px;border-radius:99px;display:inline-block;margin-right:3px;}
+
+/* EXPORT */
+.export-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1.25rem;}
+
+/* PERMISSION */
+.readonly-overlay{display:none;}
+.is-readonly .hide-readonly{display:none !important;}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:var(--radius);font-size:13px;z-index:200;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none;}
+.toast.show{opacity:1;transform:translateY(0);}
+
+/* LOADING */
+.loading{display:flex;align-items:center;justify-content:center;min-height:100vh;font-size:13px;color:var(--text3);}
+
+@media(max-width:768px){
+  .sidebar{width:56px;}
+  .sidebar-logo p,.sidebar-logo span,.nav-item span,.user-name,.user-email,.role-badge{display:none;}
+  .metrics-grid{grid-template-columns:repeat(2,1fr);}
+  .two-col,.three-col{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<div class="loading" id="loadingScreen">載入中...</div>
+
+<!-- LOGIN -->
+<div id="loginScreen" style="display:none;">
+  <div class="login-box">
+    <div class="login-logo">品牌銷售追蹤系統</div>
+    <div class="login-sub">請登入您的帳號</div>
+    <div class="form-group"><label class="form-label">電子郵件</label><input type="email" class="form-input" id="loginEmail" placeholder="email@company.com"></div>
+    <div class="form-group"><label class="form-label">密碼</label><input type="password" class="form-input" id="loginPassword" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <button class="btn primary" style="width:100%;padding:10px;" onclick="doLogin()">登入</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appScreen">
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-logo"><p>Sales Tracker</p><span>品牌銷售管理系統</span></div>
+      <nav class="sidebar-nav">
+        <div class="nav-item active" onclick="showPage('overview',this)"><span class="nav-icon">◈</span><span>品牌總覽</span></div>
+        <div class="nav-item" onclick="showPage('report',this)"><span class="nav-icon">▦</span><span>月 / 季報表</span></div>
+        <div class="nav-item" onclick="showPage('trend',this)"><span class="nav-icon">↗</span><span>銷售趨勢</span></div>
+        <div class="nav-item" onclick="showPage('calendar',this)"><span class="nav-icon">▤</span><span>開團日曆</span></div>
+        <div class="nav-item" onclick="showPage('influencer',this)"><span class="nav-icon">★</span><span>網紅 / 社團</span></div>
+        <div class="nav-item hide-readonly" onclick="showPage('entry',this)"><span class="nav-icon">✎</span><span>輸入營業額</span></div>
+        <div class="nav-item" id="navAdmin" style="display:none;" onclick="showPage('admin',this)"><span class="nav-icon">⚙</span><span>管理設定</span></div>
+        <div class="nav-item" id="navAudit" style="display:none;" onclick="showPage('audit',this)"><span class="nav-icon">◎</span><span>操作日誌</span></div>
+      </nav>
+      <div class="sidebar-user">
+        <div class="user-row">
+          <div class="user-avatar" id="userAvatar">?</div>
+          <div><div class="user-name" id="userName">—</div><div class="user-email" id="userEmail">—</div></div>
+        </div>
+        <span class="role-badge" id="userRoleBadge">—</span><br><br>
+        <button class="btn" style="width:100%;font-size:11px;" onclick="doLogout()">登出</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <span class="topbar-title" id="pageTitle">品牌進度總覽</span>
+        <div class="topbar-right">
+          <span style="font-size:12px;color:var(--text3);" id="todayLabel"></span>
+          <div class="export-row" style="margin-bottom:0;">
+            <button class="btn sm" onclick="exportData('csv')">↓ CSV</button>
+            <button class="btn sm" onclick="exportData('json')">↓ JSON</button>
+            <button class="btn sm" onclick="exportData('excel')">↓ Excel</button>
+          </div>
+          <button class="btn primary hide-readonly" onclick="openModal('entryModal')">+ 輸入營業額</button>
+        </div>
+      </div>
+
+      <div class="content">
+
+        <!-- PAGE: 品牌總覽 -->
+        <div class="page active" id="page-overview">
+          <div class="metrics-grid">
+            <div class="metric"><div class="metric-label">本月全品牌營業額</div><div class="metric-value" id="ov-total">—</div><div class="metric-sub" id="ov-vs"></div></div>
+            <div class="metric"><div class="metric-label">整體月達成率</div><div class="metric-value" id="ov-rate">—</div><div class="metric-sub" id="ov-gap"></div></div>
+            <div class="metric"><div class="metric-label">達標品牌</div><div class="metric-value" id="ov-pass">—</div><div class="metric-sub">≥ 80% 達標</div></div>
+            <div class="metric"><div class="metric-label">本季累計</div><div class="metric-value" id="ov-qtotal">—</div><div class="metric-sub" id="ov-qrate"></div></div>
+          </div>
+          <div id="brandCards"></div>
+        </div>
+
+        <!-- PAGE: 月/季報表 -->
+        <div class="page" id="page-report">
+          <div class="tab-row">
+            <button class="tab active" onclick="setReportView('month',this)">月報表</button>
+            <button class="tab" onclick="setReportView('quarter',this)">季報表</button>
+          </div>
+          <div id="reportMonth">
+            <div class="period-row">
+              <span class="period-label">月份</span>
+              <button class="period-btn" onclick="setRM(1,this)">1月</button><button class="period-btn" onclick="setRM(2,this)">2月</button><button class="period-btn" onclick="setRM(3,this)">3月</button>
+              <button class="period-btn active" onclick="setRM(4,this)">4月</button><button class="period-btn" onclick="setRM(5,this)">5月</button><button class="period-btn" onclick="setRM(6,this)">6月</button>
+              <button class="period-btn" onclick="setRM(7,this)">7月</button><button class="period-btn" onclick="setRM(8,this)">8月</button><button class="period-btn" onclick="setRM(9,this)">9月</button>
+              <button class="period-btn" onclick="setRM(10,this)">10月</button><button class="period-btn" onclick="setRM(11,this)">11月</button><button class="period-btn" onclick="setRM(12,this)">12月</button>
+            </div>
+            <div id="monthTableWrap"></div>
+          </div>
+          <div id="reportQuarter" style="display:none;">
+            <div class="period-row">
+              <span class="period-label">季度</span>
+              <button class="period-btn" onclick="setRQ(1,this)">Q1</button>
+              <button class="period-btn active" onclick="setRQ(2,this)">Q2</button>
+              <button class="period-btn" onclick="setRQ(3,this)">Q3</button>
+              <button class="period-btn" onclick="setRQ(4,this)">Q4</button>
+            </div>
+            <div id="quarterTableWrap"></div>
+          </div>
+        </div>
+
+        <!-- PAGE: 銷售趨勢 -->
+        <div class="page" id="page-trend">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">各品牌月度銷售趨勢</span>
+              <div class="filter-row" style="margin-bottom:0;" id="trendFilters"></div>
+            </div>
+            <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">月度總營業額</span></div>
+            <div class="chart-wrap" style="height:180px;"><canvas id="totalChart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- PAGE: 開團日曆 -->
+        <div class="page" id="page-calendar">
+          <div class="cal-topbar">
+            <div class="cal-nav">
+              <button class="btn" onclick="calPrev()">‹</button>
+              <span class="cal-month-label" id="calMonthLabel"></span>
+              <button class="btn" onclick="calNext()">›</button>
+            </div>
+            <button class="btn primary hide-readonly" onclick="openModal('eventModal')">+ 新增活動</button>
+          </div>
+          <div class="legend-bar">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;" id="calBrandLegend"></div>
+            <div class="legend-sep"></div>
+            <div class="legend-item">● 開團</div><div class="legend-item">▪ 長期銷售</div>
+            <div class="legend-sep"></div>
+            <div class="legend-item">▶ 銷售中</div><div class="legend-item">✓ 已結案</div><div class="legend-item">◇ 即將開始</div>
+            <div class="legend-sep"></div>
+            <div class="legend-item" style="color:#534AB7;">★ 有網紅</div>
+          </div>
+          <div id="calDetailPanel" style="display:none;" class="detail-panel"></div>
+          <div class="cal-grid" id="calGrid">
+            <div class="cal-header">日</div><div class="cal-header">一</div><div class="cal-header">二</div>
+            <div class="cal-header">三</div><div class="cal-header">四</div><div class="cal-header">五</div><div class="cal-header">六</div>
+          </div>
+        </div>
+
+        <!-- PAGE: 網紅/社團 -->
+        <div class="page" id="page-influencer">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:10px;">
+            <div class="tab-row" style="margin-bottom:0;">
+              <button class="tab active" onclick="setKolTab('list',this)">網紅列表</button>
+              <button class="tab" onclick="setKolTab('ranking',this)">排行榜</button>
+              <button class="tab" onclick="setKolTab('roi',this)">ROI 分析</button>
+              <button class="tab" onclick="setKolTab('season',this)">季節趨勢</button>
+              <button class="tab" onclick="setKolTab('match',this)">品牌匹配度</button>
+            </div>
+            <button class="btn primary" onclick="openModal('kolModal')">+ 新增網紅</button>
+          </div>
+
+          <!-- 網紅列表 -->
+          <div id="kol-tab-list">
+            <div class="filter-row" id="kolFilters">
+              <button class="filter-btn active" onclick="setKolFilter('all',this)">全部</button>
+              <button class="filter-btn" onclick="setKolFilter('IG',this)">Instagram</button>
+              <button class="filter-btn" onclick="setKolFilter('YouTube',this)">YouTube</button>
+              <button class="filter-btn" onclick="setKolFilter('FB',this)">Facebook</button>
+              <button class="filter-btn" onclick="setKolFilter('社團',this)">社團</button>
+            </div>
+            <div class="metrics-grid">
+              <div class="metric"><div class="metric-label">合作網紅/社團總數</div><div class="metric-value" id="km-total">—</div></div>
+              <div class="metric"><div class="metric-label">總合作次數</div><div class="metric-value" id="km-collabs">—</div></div>
+              <div class="metric"><div class="metric-label">總帶貨營業額</div><div class="metric-value" id="km-revenue">—</div></div>
+              <div class="metric"><div class="metric-label">平均每次營業額</div><div class="metric-value" id="km-avg">—</div></div>
+            </div>
+            <div id="kolList"></div>
+          </div>
+
+          <!-- 排行榜 -->
+          <div id="kol-tab-ranking" style="display:none;">
+            <div class="two-col">
+              <div class="card">
+                <div class="card-title">帶貨王排行（總營業額）</div>
+                <div id="rankRevenue"><p style="font-size:13px;color:var(--text3);padding:1rem 0;">載入中...</p></div>
+              </div>
+              <div class="card">
+                <div class="card-title">CP 值排行（ROI 倍數）</div>
+                <div id="rankROI"><p style="font-size:13px;color:var(--text3);padding:1rem 0;">載入中...</p></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">最穩定網紅（每次帶貨波動最小）</div>
+              <div id="rankStable"></div>
+            </div>
+          </div>
+
+          <!-- ROI 分析 -->
+          <div id="kol-tab-roi" style="display:none;">
+            <div class="card">
+              <div class="card-header">
+                <span class="card-title">各網紅 ROI 分析（費用 vs 帶貨營業額）</span>
+                <div style="display:flex;gap:6px;">
+                  <button class="filter-btn active" onclick="setROIFilter('all',this)" id="roi-all">全部</button>
+                  <button class="filter-btn" onclick="setROIFilter('paid',this)" id="roi-paid">付費合作</button>
+                  <button class="filter-btn" onclick="setROIFilter('free',this)" id="roi-free">免費/贈品</button>
+                </div>
+              </div>
+              <div style="position:relative;height:260px;"><canvas id="roiChart"></canvas></div>
+              <div style="margin-top:10px;font-size:11px;color:var(--text3);">* 免費合作費用視為 $0，ROI 顯示為「∞」</div>
+            </div>
+            <div class="card">
+              <div class="card-title">每位粉絲帶貨效益（平均月營業額 ÷ 粉絲數）</div>
+              <div style="position:relative;height:200px;"><canvas id="perFollowerChart"></canvas></div>
+            </div>
+          </div>
+
+          <!-- 季節趨勢 -->
+          <div id="kol-tab-season" style="display:none;">
+            <div class="card">
+              <div class="card-title">各季合作效益總覽</div>
+              <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;" id="seasonSummary"></div>
+            </div>
+            <div class="card">
+              <div class="card-title">月度合作帶貨趨勢</div>
+              <div style="position:relative;height:240px;"><canvas id="seasonChart"></canvas></div>
+            </div>
+            <div class="two-col">
+              <div class="card">
+                <div class="card-title">最適合開團月份</div>
+                <div id="bestMonths"></div>
+              </div>
+              <div class="card">
+                <div class="card-title">各平台季節性表現</div>
+                <div id="platformSeason"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 品牌匹配度 -->
+          <div id="kol-tab-match" style="display:none;">
+            <div class="card">
+              <div class="card-title">網紅 × 品牌匹配度（根據帶貨表現自動計算）</div>
+              <div style="overflow-x:auto;margin-top:4px;">
+                <table style="width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;min-width:500px;">
+                  <thead id="matchTableHead"></thead>
+                  <tbody id="matchTable"></tbody>
+                </table>
+              </div>
+              <div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text3);">
+                <span>★★★★★ 頂尖（ROI &gt; 5x）</span>
+                <span>★★★★ 優秀（3-5x）</span>
+                <span>★★★ 良好（2-3x）</span>
+                <span>★★ 普通（1-2x）</span>
+                <span>★ 待觀察</span>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">建議合作組合</div>
+              <div id="recommendations"></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- PAGE: 輸入營業額 -->
+        <div class="page" id="page-entry">
+          <div class="two-col">
+            <div class="card">
+              <div class="card-header"><span class="card-title">輸入本期營業額</span></div>
+              <div class="form-group"><label class="form-label">品牌</label><select class="form-input" id="e-brand"></select></div>
+              <div class="form-row">
+                <div class="form-group"><label class="form-label">年份</label><select class="form-input" id="e-year"><option value="2026">2026</option><option value="2025">2025</option></select></div>
+                <div class="form-group"><label class="form-label">月份</label>
+                  <select class="form-input" id="e-month">
+                    <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option>
+                    <option value="4" selected>4月</option><option value="5">5月</option><option value="6">6月</option>
+                    <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+                    <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group"><label class="form-label">時段</label>
+                  <select class="form-input" id="e-period"><option value="mid">月中（約15日）</option><option value="end">月底（約30日）</option></select>
+                </div>
+                <div class="form-group"><label class="form-label">營業額（元）</label><input type="number" class="form-input" id="e-amount" placeholder="例：128000"></div>
+              </div>
+              <div class="form-group"><label class="form-label">備註（選填）</label><input type="text" class="form-input" id="e-note" placeholder="例：母親節活動衝刺"></div>
+              <button class="btn primary" style="width:100%;padding:10px;" onclick="submitEntry()">提交</button>
+            </div>
+            <div class="card">
+              <div class="card-header"><span class="card-title">最近輸入記錄</span></div>
+              <div id="recentEntries"><p style="font-size:13px;color:var(--text3);text-align:center;padding:2rem 0;">載入中...</p></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAGE: 管理設定 -->
+        <div class="page" id="page-admin">
+          <div class="tab-row">
+            <button class="tab active" onclick="setAdminTab('users',this)">員工管理</button>
+            <button class="tab" onclick="setAdminTab('targets',this)">目標設定</button>
+            <button class="tab" onclick="setAdminTab('brands',this)">品牌管理</button>
+          </div>
+
+          <!-- 員工管理 -->
+          <div id="adminUsers">
+            <div class="two-col">
+              <div class="card">
+                <div class="card-header"><span class="card-title">新增員工帳號</span></div>
+                <div class="form-group"><label class="form-label">姓名</label><input type="text" class="form-input" id="newUserName" placeholder="例：林美華"></div>
+                <div class="form-group"><label class="form-label">電子郵件</label><input type="email" class="form-input" id="newUserEmail"></div>
+                <div class="form-group"><label class="form-label">密碼</label><input type="password" class="form-input" id="newUserPwd" placeholder="最少6位"></div>
+                <div class="form-group">
+                  <label class="form-label">權限</label>
+                  <select class="form-input" id="newUserRole">
+                    <option value="staff">業務（可輸入負責品牌）</option>
+                    <option value="readonly">只讀（只能查看，不能輸入）</option>
+                    <option value="admin">管理者（全部權限）</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">負責品牌（只讀帳號可留空）</label>
+                  <div id="newUserBrands" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;"></div>
+                </div>
+                <button class="btn primary" style="width:100%;padding:10px;" onclick="createUser()">建立帳號</button>
+              </div>
+              <div class="card">
+                <div class="card-header"><span class="card-title">員工帳號列表</span></div>
+                <div id="userList"><p style="font-size:13px;color:var(--text3);">載入中...</p></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 目標設定 -->
+          <div id="adminTargets" style="display:none;">
+            <div class="card">
+              <div class="card-header"><span class="card-title">設定品牌季度目標</span></div>
+              <div class="form-row" style="margin-bottom:1rem;">
+                <div class="form-group"><label class="form-label">品牌</label><select class="form-input" id="tgt-brand"></select></div>
+                <div class="form-group"><label class="form-label">季度</label>
+                  <select class="form-input" id="tgt-quarter">
+                    <option value="Q1">Q1</option><option value="Q2" selected>Q2</option>
+                    <option value="Q3">Q3</option><option value="Q4">Q4</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group"><label class="form-label">目標金額（元）</label><input type="number" class="form-input" id="tgt-amount" placeholder="例：1200000"></div>
+              <button class="btn primary" style="padding:10px 24px;" onclick="saveTarget()">儲存目標</button>
+            </div>
+            <div class="card" id="targetsOverview"></div>
+          </div>
+
+          <!-- 品牌管理 -->
+          <div id="adminBrands" style="display:none;">
+            <div class="card">
+              <div class="card-header"><span class="card-title">品牌列表</span></div>
+              <div id="brandList"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAGE: 操作日誌 -->
+        <div class="page" id="page-audit">
+          <div class="metrics-grid">
+            <div class="metric"><div class="metric-label">總操作次數</div><div class="metric-value" id="al-total">—</div></div>
+            <div class="metric"><div class="metric-label">今日操作</div><div class="metric-value" id="al-today">—</div></div>
+            <div class="metric"><div class="metric-label">編輯次數</div><div class="metric-value" id="al-edits">—</div></div>
+            <div class="metric"><div class="metric-label">刪除次數</div><div class="metric-value" id="al-deletes">—</div></div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">操作記錄</span>
+              <div style="display:flex;gap:6px;">
+                <button class="filter-btn active" onclick="setAuditFilter('all',this)">全部</button>
+                <button class="filter-btn" onclick="setAuditFilter('edit',this)">編輯</button>
+                <button class="filter-btn" onclick="setAuditFilter('delete',this)">刪除</button>
+                <button class="filter-btn" onclick="setAuditFilter('create',this)">新增</button>
+              </div>
+            </div>
+            <div id="auditList"><p style="font-size:13px;color:var(--text3);text-align:center;padding:2rem 0;">載入中...</p></div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="entryModal">
+  <div class="modal">
+    <div class="modal-title">快速輸入營業額</div>
+    <div class="form-group"><label class="form-label">品牌</label><select class="form-input" id="me-brand"></select></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">月份</label>
+        <select class="form-input" id="me-month">
+          <option value="4" selected>4月</option><option value="5">5月</option><option value="6">6月</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">時段</label>
+        <select class="form-input" id="me-period"><option value="mid">月中</option><option value="end">月底</option></select>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">營業額（元）</label><input type="number" class="form-input" id="me-amount" placeholder="例：128000"></div>
+    <div class="form-group"><label class="form-label">備註（選填）</label><input type="text" class="form-input" id="me-note"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('entryModal')">取消</button>
+      <button class="btn primary" onclick="submitModalEntry()">提交</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="eventModal">
+  <div class="modal">
+    <div class="modal-title">新增開團 / 銷售活動</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">品牌</label><select class="form-input" id="ev-brand"></select></div>
+      <div class="form-group"><label class="form-label">類型</label>
+        <select class="form-input" id="ev-type"><option value="開團">開團</option><option value="長期銷售">長期銷售</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">日期</label><input type="date" class="form-input" id="ev-date"></div>
+      <div class="form-group"><label class="form-label">狀態</label>
+        <select class="form-input" id="ev-status">
+          <option value="upcoming">◇ 即將開始</option>
+          <option value="active">▶ 銷售中</option>
+          <option value="closed">✓ 已結案</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">營業額（元）</label><input type="number" class="form-input" id="ev-amount" placeholder="0"></div>
+      <div class="form-group"><label class="form-label">活動名稱</label><input type="text" class="form-input" id="ev-note" placeholder="例：母親節開團"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">合作網紅（選填，可多選）</label>
+      <div id="evKolList" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px;max-height:120px;overflow-y:auto;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('eventModal')">取消</button>
+      <button class="btn primary" onclick="submitEvent()">新增</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="kolModal">
+  <div class="modal">
+    <div class="modal-title">新增網紅 / 社團</div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">名稱</label><input type="text" class="form-input" id="kol-name" placeholder="例：美妝達人 Amy"></div>
+      <div class="form-group"><label class="form-label">平台</label>
+        <select class="form-input" id="kol-platform">
+          <option value="IG">Instagram</option><option value="YouTube">YouTube</option>
+          <option value="FB">Facebook</option><option value="社團">社團</option><option value="其他">其他</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">粉絲數</label><input type="number" class="form-input" id="kol-followers" placeholder="例：120000"></div>
+      <div class="form-group"><label class="form-label">合作費用（元，免費填 0）</label><input type="number" class="form-input" id="kol-cost" placeholder="例：15000"></div>
+    </div>
+    <div class="form-group"><label class="form-label">備註</label><input type="text" class="form-input" id="kol-note" placeholder="例：美妝、生活類"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('kolModal')">取消</button>
+      <button class="btn primary" onclick="submitKol()">新增</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="kolDetailModal">
+  <div class="modal" style="width:560px;">
+    <div id="kolDetailContent"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('kolDetailModal')">關閉</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, addDoc, collection, query, where, orderBy, onSnapshot, getDocs, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAgGILa0yXzFoKvh19kGsW-2lpI27Eafc8",
+  authDomain: "brand-sales-report.firebaseapp.com",
+  projectId: "brand-sales-report",
+  storageBucket: "brand-sales-report.firebasestorage.app",
+  messagingSenderId: "776871172529",
+  appId: "1:776871172529:web:773259871eeeccc9464590"
+};
+
+const app = initializeApp(firebaseConfig);
+
+// ── FIRESTORE RULES REQUIRED ──
+// In Firebase Console → Firestore → Rules, set:
+// rules_version = '2';
+// service cloud.firestore {
+//   match /databases/{database}/documents {
+//     match /{document=**} {
+//       allow read, write: if request.auth != null;
+//     }
+//   }
+// }
+
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ── STATE ──
+let currentUser=null, currentProfile=null;
+let allBrands=[], salesCache={}, targetsCache={}, eventsCache=[], kolCache=[], salesRaw=[];
+let calYear=2026, calMonth=new Date().getMonth(), calSelected=null;
+let reportMonth=new Date().getMonth()+1, reportQuarter=Math.ceil((new Date().getMonth()+1)/3);
+let trendFilter='all', kolFilter='all';
+let trendChartInst=null, totalChartInst=null;
+
+const STATUS_META={
+  active:{sym:'▶',label:'銷售中',bg:'#EAF3DE',fg:'#27500A'},
+  closed:{sym:'✓',label:'已結案',bg:'#F1EFE8',fg:'#5F5E5A'},
+  upcoming:{sym:'◇',label:'即將開始',bg:'#E6F1FB',fg:'#0C447C'},
+};
+const PLATFORM_COLORS={IG:{bg:'#FBEAF0',fg:'#993556'},YouTube:{bg:'#FCEBEB',fg:'#791F1F'},FB:{bg:'#E6F1FB',fg:'#0C447C'},社團:{bg:'#EAF3DE',fg:'#27500A'},其他:{bg:'#F1EFE8',fg:'#5F5E5A'}};
+
+// ── HELPERS ──
+const fmt=n=>n?'$'+Number(n).toLocaleString():'—';
+const fmtK=n=>n?'$'+(n/1000).toFixed(0)+'K':'—';
+const rateColor=r=>r>=100?'#27500A':r>=80?'#185FA5':r>=60?'#BA7517':'#E24B4A';
+const barColor=r=>r>=100?'#3B6D11':r>=80?'#185FA5':r>=60?'#EF9F27':'#E24B4A';
+const getQLabel=m=>'Q'+Math.ceil(m/3);
+const getMonthTarget=(id,m)=>Math.round((targetsCache[id]?.[getQLabel(m)]||0)/3);
+const getSales=(id,m)=>salesCache[id]?.[m]||0;
+const getBrand=id=>allBrands.find(b=>b.id===id);
+const canEdit=brandId=>{
+  if(!currentProfile) return false;
+  if(currentProfile.role==='admin') return true;
+  if(currentProfile.role==='readonly') return false;
+  return currentProfile.brands?.includes(brandId);
+};
+const showToast=msg=>{const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);};
+window.openModal=id=>document.getElementById(id).classList.add('open');
+window.closeModal=id=>document.getElementById(id).classList.remove('open');
+document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
+
+// ── AUTH ──
+window.doLogin=async()=>{
+  const email=document.getElementById('loginEmail').value.trim();
+  const pwd=document.getElementById('loginPassword').value;
+  document.getElementById('loginErr').textContent='';
+  try{await signInWithEmailAndPassword(auth,email,pwd);}
+  catch(e){document.getElementById('loginErr').textContent='電子郵件或密碼錯誤，請再試一次。';}
+};
+window.doLogout=async()=>await signOut(auth);
+
+onAuthStateChanged(auth,async user=>{
+  document.getElementById('loadingScreen').style.display='none';
+  if(!user){
+    document.getElementById('loginScreen').style.display='flex';
+    document.getElementById('appScreen').style.display='none';
+    return;
+  }
+  currentUser=user;
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('appScreen').style.display='flex';
+
+  const snap=await getDoc(doc(db,'users',user.uid));
+  currentProfile=snap.exists()?snap.data():{name:user.email,role:'staff',brands:[]};
+
+  const isAdmin=currentProfile.role==='admin';
+  const isReadonly=currentProfile.role==='readonly';
+  if(isReadonly) document.getElementById('appScreen').classList.add('is-readonly');
+  if(isAdmin) document.getElementById('navAdmin').style.display='flex';
+  if(isAdmin) document.getElementById('navAudit').style.display='flex';
+
+  document.getElementById('userAvatar').textContent=(currentProfile.name||'?').slice(0,2);
+  document.getElementById('userName').textContent=currentProfile.name||user.email;
+  document.getElementById('userEmail').textContent=user.email;
+  const roleLabel=isAdmin?'管理者':isReadonly?'只讀':'業務';
+  const roleBg=isAdmin?'#E6F1FB':isReadonly?'#F1EFE8':'#EAF3DE';
+  const roleFg=isAdmin?'#0C447C':isReadonly?'#5F5E5A':'#27500A';
+  document.getElementById('userRoleBadge').textContent=roleLabel;
+  document.getElementById('userRoleBadge').style.cssText=`background:${roleBg};color:${roleFg};`;
+  document.getElementById('todayLabel').textContent=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('ev-date').value=new Date().toISOString().split('T')[0];
+
+  await loadBrands();
+  await loadTargets();
+  listenSales();
+  listenEvents();
+  listenKols();
+  listenEntries();
+  if(isAdmin) loadUserList();
+});
+
+// ── BRANDS ──
+async function loadBrands(){
+  const snap=await getDocs(collection(db,'brands'));
+  if(snap.empty){
+    const defaults=[
+      {id:'A',name:'品牌 A',color:'#185FA5',bg:'#E6F1FB',text:'#0C447C'},
+      {id:'B',name:'品牌 B',color:'#0F6E56',bg:'#E1F5EE',text:'#085041'},
+      {id:'C',name:'品牌 C',color:'#854F0B',bg:'#FAEEDA',text:'#633806'},
+      {id:'D',name:'品牌 D',color:'#534AB7',bg:'#EEEDFE',text:'#3C3489'},
+      {id:'E',name:'品牌 E',color:'#993556',bg:'#FBEAF0',text:'#72243E'},
+      {id:'F',name:'品牌 F',color:'#5F5E5A',bg:'#F1EFE8',text:'#444441'},
+    ];
+    for(const b of defaults) await setDoc(doc(db,'brands',b.id),b);
+    allBrands=defaults;
+  } else {
+    allBrands=snap.docs.map(d=>({...d.data(),id:d.id}));
+  }
+  const vb=visibleBrands();
+  populateBrandSelects(vb);
+  renderCalBrandLegend(vb);
+  renderTrendFilters(vb);
+  renderAdminBrandCheckboxes();
+  renderBrandList();
+}
+
+const visibleBrands=()=>currentProfile.role==='admin'?allBrands:allBrands.filter(b=>currentProfile.brands?.includes(b.id));
+
+function populateBrandSelects(brands){
+  ['e-brand','me-brand','ev-brand','tgt-brand'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    el.innerHTML=brands.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+  });
+}
+
+// ── TARGETS ──
+async function loadTargets(){
+  const snap=await getDocs(collection(db,'targets'));
+  targetsCache={};
+  snap.forEach(d=>{const{brandId,quarter,amount}=d.data();if(!targetsCache[brandId])targetsCache[brandId]={};targetsCache[brandId][quarter]=amount;});
+  if(snap.empty){
+    const defs={A:{Q1:800000,Q2:1200000,Q3:1000000,Q4:1500000},B:{Q1:600000,Q2:900000,Q3:750000,Q4:1100000},C:{Q1:500000,Q2:750000,Q3:600000,Q4:900000},D:{Q1:700000,Q2:1050000,Q3:850000,Q4:1300000},E:{Q1:400000,Q2:600000,Q3:500000,Q4:750000},F:{Q1:450000,Q2:680000,Q3:550000,Q4:820000}};
+    for(const[bid,qs] of Object.entries(defs)){for(const[q,amt] of Object.entries(qs)){await addDoc(collection(db,'targets'),{brandId:bid,quarter:q,amount:amt});if(!targetsCache[bid])targetsCache[bid]={};targetsCache[bid][q]=amt;}}
+  }
+  renderTargetsOverview();
+}
+
+// ── SALES ──
+function listenSales(){
+  onSnapshot(collection(db,'sales'),snap=>{
+    salesCache={};salesRaw=[];
+    snap.forEach(d=>{
+      const r={...d.data(),id:d.id};salesRaw.push(r);
+      const{brandId,month,amount}=r;
+      if(!salesCache[brandId])salesCache[brandId]={};
+      salesCache[brandId][month]=(salesCache[brandId][month]||0)+(amount||0);
+    });
+    renderOverview();renderMonthTable(reportMonth);renderQuarterTable(reportQuarter);
+    if(document.getElementById('page-trend').classList.contains('active'))renderTrend();
+  });
+}
+
+// ── EVENTS ──
+function listenEvents(){
+  onSnapshot(collection(db,'events'),snap=>{
+    eventsCache=snap.docs.map(d=>({...d.data(),id:d.id}));
+    renderCalendar();
+  });
+}
+
+// ── KOLS ──
+function listenKols(){
+  onSnapshot(collection(db,'kols'),snap=>{
+    kolCache=snap.docs.map(d=>({...d.data(),id:d.id}));
+    renderKolList();
+    renderKolMetrics();
+    renderEvKolList();
+  });
+}
+
+// ── ENTRIES ──
+function listenEntries(){
+  const q=query(collection(db,'sales'),orderBy('createdAt','desc'));
+  onSnapshot(q,snap=>{
+    const entries=snap.docs.map(d=>({...d.data(),id:d.id}));
+    const visible=currentProfile.role==='admin'?entries:entries.filter(e=>currentProfile.brands?.includes(e.brandId));
+    renderRecentEntries(visible.slice(0,15));
+  });
+}
+
+// ── OVERVIEW ──
+function renderOverview(){
+  const m=new Date().getMonth()+1;
+  const vb=visibleBrands();
+  const rows=vb.map(b=>{
+    const actual=getSales(b.id,m),target=getMonthTarget(b.id,m);
+    const rate=target>0?Math.round(actual/target*100):0,diff=actual-target;
+    const ql=getQLabel(m),qt=targetsCache[b.id]?.[ql]||0;
+    const qm=[1,2,3].map(i=>m-((m-1)%3)+i-1).filter(x=>x>=1&&x<=12);
+    const qa=qm.reduce((s,x)=>s+getSales(b.id,x),0);
+    const qr=qt>0?Math.round(qa/qt*100):0;
+    return{b,actual,target,rate,diff,qa,qt,qr};
+  });
+  const ta=rows.reduce((s,r)=>s+r.actual,0),tt=rows.reduce((s,r)=>s+r.target,0);
+  const tr=tt>0?Math.round(ta/tt*100):0,td=ta-tt;
+  const pass=rows.filter(r=>r.rate>=80&&r.actual>0).length;
+  const qa2=rows.reduce((s,r)=>s+r.qa,0),qt2=rows.reduce((s,r)=>s+r.qt,0);
+  const qr2=qt2>0?Math.round(qa2/qt2*100):0;
+
+  document.getElementById('ov-total').textContent=fmtK(ta);
+  document.getElementById('ov-rate').textContent=tr+'%';document.getElementById('ov-rate').style.color=rateColor(tr);
+  document.getElementById('ov-gap').textContent=(td>=0?'超出 ':'差距 ')+fmtK(Math.abs(td));document.getElementById('ov-gap').style.color=td>=0?'#27500A':'#E24B4A';
+  document.getElementById('ov-pass').textContent=pass+' / '+vb.length;
+  document.getElementById('ov-qtotal').textContent=fmtK(qa2);
+  document.getElementById('ov-qrate').textContent=getQLabel(m)+' 達成率 '+qr2+'%';document.getElementById('ov-qrate').style.color=rateColor(qr2);
+
+  document.getElementById('brandCards').innerHTML=rows.map(({b,actual,target,rate,diff,qa,qt,qr})=>{
+    const bc=barColor(rate),rc=rateColor(rate);
+    const ds=(diff>=0?'+':'')+fmtK(diff);
+    const sl=rate>=100?'已達標':rate>=80?'接近達標':rate>=60?'待加油':'需關注';
+    const sb=rate>=100?'#EAF3DE':rate>=80?'#E6F1FB':rate>=60?'#FAEEDA':'#FCEBEB';
+    const sf=rate>=100?'#27500A':rate>=80?'#0C447C':rate>=60?'#633806':'#791F1F';
+    const editBtn=canEdit(b.id)&&currentProfile.role!=='readonly'?`<button class="btn sm" onclick="openEntryFor('${b.id}')">輸入</button>`:'';
+    return`<div class="brand-card">
+      <div class="brand-header">
+        <div>
+          <div class="brand-name-row">
+            <span class="brand-dot" style="background:${b.color};"></span>
+            <span class="brand-title">${b.name}</span>
+            <span class="status-pill" style="background:${sb};color:${sf};">${sl}</span>
+          </div>
+          <div class="brand-meta">本月目標 ${fmt(target)} ／ ${getQLabel(new Date().getMonth()+1)} 目標 ${fmtK(qt)}</div>
+        </div>
+        <div style="text-align:right;display:flex;align-items:flex-start;gap:8px;">
+          ${editBtn}
+          <div><div class="brand-actual" style="color:${rc};">${fmt(actual)}</div><div class="brand-target">目標 ${fmtK(target)}</div></div>
+        </div>
+      </div>
+      <div class="progress-label"><span>月達成率 <strong style="color:${rc};">${rate}%</strong></span><span style="color:${diff>=0?'#27500A':'#E24B4A'};">${ds}</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(rate,100)}%;background:${bc};"></div></div>
+      <div class="brand-stats">
+        <div class="brand-stat">${getQLabel(new Date().getMonth()+1)}累計 <strong>${fmtK(qa)}</strong></div>
+        <div class="brand-stat">${getQLabel(new Date().getMonth()+1)}達成率 <strong style="color:${rateColor(qr)};">${qr}%</strong></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.openEntryFor=brandId=>{
+  document.getElementById('me-brand').value=brandId;
+  openModal('entryModal');
+};
+
+// ── REPORT ──
+window.setReportView=(v,btn)=>{
+  document.querySelectorAll('#page-report .tab').forEach(t=>t.classList.remove('active'));btn.classList.add('active');
+  document.getElementById('reportMonth').style.display=v==='month'?'block':'none';
+  document.getElementById('reportQuarter').style.display=v==='quarter'?'block':'none';
+};
+window.setRM=(m,btn)=>{reportMonth=m;document.querySelectorAll('#reportMonth .period-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderMonthTable(m);};
+window.setRQ=(q,btn)=>{reportQuarter=q;document.querySelectorAll('#reportQuarter .period-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderQuarterTable(q);};
+
+function renderMonthTable(m){
+  const vb=visibleBrands();
+  const rows=vb.map(b=>{const a=getSales(b.id,m),t=getMonthTarget(b.id,m),r=t>0?Math.round(a/t*100):0,d=a-t;return{b,a,t,r,d};});
+  const ta=rows.reduce((s,r)=>s+r.a,0),tt=rows.reduce((s,r)=>s+r.t,0),tr=tt>0?Math.round(ta/tt*100):0,td=ta-tt;
+  const pass=rows.filter(r=>r.r>=80&&r.a>0).length;
+  document.getElementById('monthTableWrap').innerHTML=`
+    <div class="metrics-grid" style="margin-bottom:1.25rem;">
+      <div class="metric"><div class="metric-label">${m}月 實際營業額</div><div class="metric-value">${fmtK(ta)}</div></div>
+      <div class="metric"><div class="metric-label">${m}月 目標</div><div class="metric-value">${fmtK(tt)}</div></div>
+      <div class="metric"><div class="metric-label">整體達成率</div><div class="metric-value" style="color:${rateColor(tr)};">${tr}%</div><div class="metric-sub" style="color:${td>=0?'#27500A':'#E24B4A'};">${td>=0?'超出':'差距'} ${fmtK(Math.abs(td))}</div></div>
+      <div class="metric"><div class="metric-label">達標品牌數</div><div class="metric-value">${pass} / ${vb.length}</div></div>
+    </div>
+    <div class="card"><div class="card-header"><span class="card-title">${m}月 各品牌明細</span></div>
+    <div style="overflow-x:auto;"><table class="data-table" style="min-width:460px;">
+      <colgroup><col style="width:22%"><col style="width:22%"><col style="width:18%"><col style="width:26%"><col style="width:12%"></colgroup>
+      <thead><tr><th>品牌</th><th class="r">實際營業額</th><th class="r">月目標</th><th class="r">達成率</th><th class="r">差距</th></tr></thead>
+      <tbody>
+        ${rows.map(({b,a,t,r,d})=>`<tr>
+          <td><div style="display:flex;align-items:center;gap:7px;"><span class="brand-dot" style="background:${b.color};"></span>${b.name}</div></td>
+          <td class="r" style="font-weight:500;">${a?fmt(a):'—'}</td>
+          <td class="r" style="color:var(--text2);">${fmt(t)}</td>
+          <td class="r"><div class="rate-block">
+            <span style="font-size:13px;font-weight:500;color:${a?rateColor(r):'var(--text3)'};">${a?r+'%':'—'}</span>
+            <div class="mini-bar-wrap"><div class="mini-bar" style="width:${Math.min(r,100)}%;background:${barColor(r)};"></div></div>
+          </div></td>
+          <td class="r" style="font-size:12px;color:${d>=0?'#27500A':'#E24B4A'};">${a?(d>=0?'+':'')+fmtK(d):'—'}</td>
+        </tr>`).join('')}
+        <tr class="total"><td>全品牌合計</td><td class="r">${fmt(ta)}</td><td class="r">${fmt(tt)}</td><td class="r" style="color:${rateColor(tr)};">${tr}%</td><td class="r" style="color:${td>=0?'#27500A':'#E24B4A'};font-size:12px;">${(td>=0?'+':'')+fmtK(td)}</td></tr>
+      </tbody>
+    </table></div></div>`;
+}
+
+function renderQuarterTable(q){
+  const ql='Q'+q,months=[q*3-2,q*3-1,q*3];
+  const vb=visibleBrands();
+  const rows=vb.map(b=>{const t=targetsCache[b.id]?.[ql]||0,a=months.reduce((s,m)=>s+getSales(b.id,m),0),r=t>0?Math.round(a/t*100):0,d=a-t;return{b,t,a,r,d,ma:months.map(m=>getSales(b.id,m))};});
+  const ta=rows.reduce((s,r)=>s+r.a,0),tt=rows.reduce((s,r)=>s+r.t,0),tr=tt>0?Math.round(ta/tt*100):0,td=ta-tt;
+  const pass=rows.filter(r=>r.r>=80&&r.a>0).length;
+  document.getElementById('quarterTableWrap').innerHTML=`
+    <div class="metrics-grid" style="margin-bottom:1.25rem;">
+      <div class="metric"><div class="metric-label">Q${q} 實際營業額</div><div class="metric-value">${fmtK(ta)}</div></div>
+      <div class="metric"><div class="metric-label">Q${q} 目標</div><div class="metric-value">${fmtK(tt)}</div></div>
+      <div class="metric"><div class="metric-label">整體達成率</div><div class="metric-value" style="color:${rateColor(tr)};">${tr}%</div><div class="metric-sub" style="color:${td>=0?'#27500A':'#E24B4A'};">${td>=0?'超出':'差距'} ${fmtK(Math.abs(td))}</div></div>
+      <div class="metric"><div class="metric-label">達標品牌數</div><div class="metric-value">${pass} / ${vb.length}</div></div>
+    </div>
+    <div class="card"><div class="card-header"><span class="card-title">Q${q} 各品牌明細</span></div>
+    <div style="overflow-x:auto;"><table class="data-table" style="min-width:560px;">
+      <colgroup><col style="width:16%"><col style="width:11%"><col style="width:11%"><col style="width:11%"><col style="width:13%"><col style="width:12%"><col style="width:14%"></colgroup>
+      <thead><tr><th>品牌</th>${months.map(m=>`<th class="r">${m}月</th>`).join('')}<th class="r">季合計</th><th class="r">季目標</th><th class="r">達成率</th></tr></thead>
+      <tbody>
+        ${rows.map(({b,a,t,r,d,ma})=>`<tr>
+          <td><div style="display:flex;align-items:center;gap:7px;"><span class="brand-dot" style="background:${b.color};"></span>${b.name}</div></td>
+          ${ma.map(x=>`<td class="r" style="color:var(--text2);font-size:12px;">${x?fmtK(x):'—'}</td>`).join('')}
+          <td class="r" style="font-weight:500;">${a?fmt(a):'—'}</td>
+          <td class="r" style="color:var(--text2);">${fmt(t)}</td>
+          <td class="r"><div class="rate-block">
+            <span style="font-size:13px;font-weight:500;color:${a?rateColor(r):'var(--text3)'};">${a?r+'%':'—'}</span>
+            <div class="mini-bar-wrap"><div class="mini-bar" style="width:${Math.min(r,100)}%;background:${barColor(r)};"></div></div>
+          </div></td>
+        </tr>`).join('')}
+        <tr class="total"><td>全品牌合計</td>${months.map(m=>`<td class="r" style="font-size:12px;">${fmtK(vb.reduce((s,b)=>s+getSales(b.id,m),0))}</td>`).join('')}<td class="r">${fmt(ta)}</td><td class="r">${fmt(tt)}</td><td class="r" style="color:${rateColor(tr)};">${tr}%</td></tr>
+      </tbody>
+    </table></div></div>`;
+}
+
+// ── TREND ──
+function renderTrendFilters(brands){
+  document.getElementById('trendFilters').innerHTML=`<button class="filter-btn active" onclick="setTF('all',this)">全部</button>`+brands.map(b=>`<button class="filter-btn" onclick="setTF('${b.id}',this)">${b.name}</button>`).join('');
+}
+window.setTF=(f,btn)=>{trendFilter=f;document.querySelectorAll('#trendFilters .filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderTrend();};
+function renderTrend(){
+  const vb=visibleBrands();
+  const labels=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const months=[1,2,3,4,5,6,7,8,9,10,11,12];
+  const dk=matchMedia('(prefers-color-scheme:dark)').matches;
+  const gc=dk?'rgba(255,255,255,.08)':'rgba(0,0,0,.06)',tc=dk?'#6b6b66':'#9b9b96';
+  if(trendChartInst)trendChartInst.destroy();
+  const filtered=trendFilter==='all'?vb:vb.filter(b=>b.id===trendFilter);
+  trendChartInst=new Chart(document.getElementById('trendChart'),{
+    type:'line',data:{labels,datasets:filtered.map(b=>({label:b.name,data:months.map(m=>getSales(b.id,m)||null),borderColor:b.color,backgroundColor:b.color+'22',tension:0.4,fill:trendFilter!=='all',pointBackgroundColor:b.color,pointRadius:4,borderWidth:2,spanGaps:false}))},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:11},color:tc,boxWidth:12}}},scales:{y:{ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'K',color:tc,font:{size:11}},grid:{color:gc}},x:{ticks:{color:tc,font:{size:11}},grid:{display:false}}}}
+  });
+  if(totalChartInst)totalChartInst.destroy();
+  totalChartInst=new Chart(document.getElementById('totalChart'),{
+    type:'bar',data:{labels,datasets:[{label:'全品牌合計',data:months.map(m=>vb.reduce((s,b)=>s+getSales(b.id,m),0)||null),backgroundColor:'#185FA5',borderRadius:4,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'K',color:tc,font:{size:11}},grid:{color:gc}},x:{ticks:{color:tc,font:{size:11}},grid:{display:false}}}}
+  });
+}
+
+// ── CALENDAR ──
+function renderCalBrandLegend(brands){
+  document.getElementById('calBrandLegend').innerHTML=brands.map(b=>`<div class="legend-item"><div class="legend-dot" style="background:${b.color};"></div>${b.name}</div>`).join('');
+}
+function renderCalendar(){
+  document.getElementById('calMonthLabel').textContent=`${calYear}年 ${calMonth+1}月`;
+  const grid=document.getElementById('calGrid');
+  const headers=Array.from(grid.querySelectorAll('.cal-header'));
+  grid.innerHTML='';headers.forEach(h=>grid.appendChild(h));
+  const firstDay=new Date(calYear,calMonth,1).getDay();
+  const dim=new Date(calYear,calMonth+1,0).getDate();
+  const today=new Date();
+  const vbIds=visibleBrands().map(b=>b.id);
+  for(let i=0;i<firstDay;i++){const c=document.createElement('div');c.className='cal-cell empty';grid.appendChild(c);}
+  for(let d=1;d<=dim;d++){
+    const key=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayEvs=eventsCache.filter(e=>e.date===key&&vbIds.includes(e.brand));
+    const isToday=today.getFullYear()===calYear&&today.getMonth()===calMonth&&today.getDate()===d;
+    const cell=document.createElement('div');
+    cell.className='cal-cell'+(isToday?' today':'')+(calSelected===key?' selected':'');
+    let html=`<div class="cal-day-num">${d}</div>`;
+    dayEvs.slice(0,3).forEach(ev=>{
+      const br=getBrand(ev.brand)||{color:'#888',bg:'#eee',text:'#444'};
+      const st=STATUS_META[ev.status]||STATUS_META.upcoming;
+      const isGroup=ev.type==='開團';
+      const evKols=(ev.kolIds||[]).map(id=>kolCache.find(k=>k.id===id)?.name).filter(Boolean);
+      html+=`<div class="ev-pill${isGroup?' group':''}" style="background:${br.bg};color:${br.text};">
+        <div class="ev-pill-top">
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${isGroup?'●':'▪'} ${br.name}</span>
+          <span style="font-size:11px;flex-shrink:0;">${st.sym}${evKols.length?' ★':''}</span>
+        </div>
+        ${evKols.length?`<div class="ev-influencer">★ ${evKols.join('、')}</div>`:''}
+      </div>`;
+    });
+    if(dayEvs.length>3)html+=`<div style="font-size:10px;color:var(--text3);padding:1px 3px;">+${dayEvs.length-3}</div>`;
+    cell.innerHTML=html;
+    if(dayEvs.length>0)cell.onclick=()=>openCalDetail(key,d,dayEvs);
+    grid.appendChild(cell);
+  }
+}
+
+function openCalDetail(key,d,dayEvs){
+  calSelected=key;renderCalendar();
+  const panel=document.getElementById('calDetailPanel');
+  const total=dayEvs.reduce((s,e)=>s+(e.amount||0),0);
+  const dateStr=`${calYear}年${calMonth+1}月${d}日`;
+  panel.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <span style="font-size:14px;font-weight:500;color:var(--text);">${dateStr} · ${dayEvs.length} 筆記錄</span>
+      <button class="btn" onclick="closeCalDetail()">✕</button>
+    </div>
+    ${dayEvs.map(ev=>{
+      const br=getBrand(ev.brand)||{color:'#888',bg:'#eee',text:'#444',name:'未知'};
+      const st=STATUS_META[ev.status]||STATUS_META.upcoming;
+      const isGroup=ev.type==='開團';
+      const evKols=(ev.kolIds||[]).map(id=>kolCache.find(k=>k.id===id)?.name).filter(Boolean);
+      return`<div class="ev-card" style="background:${br.bg};border-left-color:${br.color};">
+        <div class="ev-top">
+          <div>
+            <div class="ev-brand" style="color:${br.text};">${br.name}</div>
+            <span class="ev-badge" style="background:${isGroup?br.color:'transparent'};color:${isGroup?'#fff':br.text};border:0.5px solid ${br.color};">${ev.type}</span>
+            <span class="ev-badge" style="background:${st.bg};color:${st.fg};">${st.sym} ${st.label}</span>
+            ${evKols.length?`<div style="font-size:11px;color:${br.text};margin-top:5px;">★ 網紅：${evKols.join('、')}</div>`:''}
+          </div>
+          <div>
+            <div class="ev-amount" style="color:${br.text};">${fmt(ev.amount)}</div>
+            <div class="ev-note">${ev.note||''}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}
+    ${dayEvs.length>1?`<div class="ev-total"><span style="font-size:12px;color:var(--text2);">當日合計</span><span style="font-size:16px;font-weight:600;color:var(--text);">${fmt(total)}</span></div>`:''}`;
+  panel.style.display='block';
+}
+window.closeCalDetail=()=>{calSelected=null;document.getElementById('calDetailPanel').style.display='none';renderCalendar();};
+window.calPrev=()=>{calMonth--;if(calMonth<0){calMonth=11;calYear--;}calSelected=null;document.getElementById('calDetailPanel').style.display='none';renderCalendar();};
+window.calNext=()=>{calMonth++;if(calMonth>11){calMonth=0;calYear++;}calSelected=null;document.getElementById('calDetailPanel').style.display='none';renderCalendar();};
+
+// ── KOL ──
+window.setKolFilter=(f,btn)=>{kolFilter=f;document.querySelectorAll('#kolFilters .filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderKolList();};
+
+function renderKolMetrics(){
+  const total=kolCache.length;
+  const collabEvs=eventsCache.filter(e=>e.kolIds?.length>0);
+  const totalCollabs=eventsCache.reduce((s,e)=>s+(e.kolIds?.length||0),0);
+  const totalRev=eventsCache.filter(e=>e.kolIds?.length>0).reduce((s,e)=>s+(e.amount||0),0);
+  const avg=totalCollabs>0?Math.round(totalRev/totalCollabs):0;
+  document.getElementById('km-total').textContent=total;
+  document.getElementById('km-collabs').textContent=totalCollabs;
+  document.getElementById('km-revenue').textContent=fmtK(totalRev);
+  document.getElementById('km-avg').textContent=fmtK(avg);
+}
+
+function renderKolList(){
+  const filtered=kolFilter==='all'?kolCache:kolCache.filter(k=>k.platform===kolFilter);
+  const el=document.getElementById('kolList');
+  if(!filtered.length){el.innerHTML='<p style="font-size:13px;color:var(--text3);text-align:center;padding:2rem 0;">尚無網紅/社團記錄</p>';return;}
+  el.innerHTML=filtered.map(kol=>{
+    const kolEvs=eventsCache.filter(e=>e.kolIds?.includes(kol.id));
+    const totalRev=kolEvs.reduce((s,e)=>s+(e.amount||0),0);
+    const collabs=kolEvs.length;
+    const brands=[...new Set(kolEvs.map(e=>e.brand))].map(id=>getBrand(id)?.name).filter(Boolean);
+    const pc=PLATFORM_COLORS[kol.platform]||PLATFORM_COLORS['其他'];
+    return`<div class="kol-card">
+      <div class="kol-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="kol-avatar">${(kol.name||'?').slice(0,2)}</div>
+          <div>
+            <div class="kol-name">${kol.name}</div>
+            <div class="kol-meta">
+              <span class="platform-badge" style="background:${pc.bg};color:${pc.fg};">${kol.platform}</span>
+              ${kol.note||''}
+            </div>
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:18px;font-weight:600;color:var(--text);">${fmtK(totalRev)}</div>
+          <div style="font-size:11px;color:var(--text3);">合計營業額</div>
+        </div>
+      </div>
+      <div class="kol-stats">
+        <div class="kol-stat">合作次數 <strong>${collabs}</strong></div>
+        <div class="kol-stat">合作品牌 <strong>${brands.length>0?brands.join('、'):'—'}</strong></div>
+        <div class="kol-stat">平均每次 <strong>${collabs>0?fmtK(Math.round(totalRev/collabs)):'—'}</strong></div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px;border-top:0.5px solid var(--border);padding-top:10px;">
+        <button class="btn sm" style="font-size:11px;" onclick="openKolDetail('${kol.id}')">查看詳情</button>
+        <button class="btn sm" style="font-size:11px;" onclick="openEditKol('${kol.id}')">編輯</button>
+        ${currentProfile.role==='admin'?`<button class="btn sm" style="font-size:11px;color:#E24B4A;border-color:#E24B4A;" onclick="confirmDelete('kol','${kol.id}')">刪除</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.openKolDetail=id=>{
+  const kol=kolCache.find(k=>k.id===id);
+  if(!kol)return;
+  const kolEvs=eventsCache.filter(e=>e.kolIds?.includes(id)).sort((a,b)=>a.date>b.date?-1:1);
+  const totalRev=kolEvs.reduce((s,e)=>s+(e.amount||0),0);
+  const pc=PLATFORM_COLORS[kol.platform]||PLATFORM_COLORS['其他'];
+
+  // Group by brand for comparison
+  const byBrand={};
+  kolEvs.forEach(ev=>{
+    if(!byBrand[ev.brand])byBrand[ev.brand]=[];
+    byBrand[ev.brand].push(ev);
+  });
+
+  const brandAnalysis=Object.entries(byBrand).map(([bid,evs])=>{
+    const br=getBrand(bid);
+    const revs=evs.map(e=>e.amount||0);
+    const total=revs.reduce((s,v)=>s+v,0);
+    const avg=Math.round(total/revs.length);
+    const trend=revs.length>=2?revs[0]-revs[1]:null;
+    return{br,evs,total,avg,trend};
+  });
+
+  document.getElementById('kolDetailContent').innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1.25rem;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="kol-avatar" style="width:44px;height:44px;font-size:16px;">${(kol.name||'?').slice(0,2)}</div>
+        <div>
+          <div style="font-size:16px;font-weight:500;color:var(--text);">${kol.name}</div>
+          <span class="platform-badge" style="background:${pc.bg};color:${pc.fg};">${kol.platform}</span>
+          <span style="font-size:11px;color:var(--text3);margin-left:4px;">${kol.note||''}</span>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:22px;font-weight:600;color:var(--text);">${fmtK(totalRev)}</div>
+        <div style="font-size:11px;color:var(--text3);">總帶貨營業額 · ${kolEvs.length} 次合作</div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:1.25rem;">
+      <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px;">各品牌合作分析</div>
+      ${brandAnalysis.map(({br,evs,total,avg,trend})=>{
+        if(!br)return'';
+        const trendStr=trend!==null?(trend>=0?`↑ ${fmtK(trend)}`:`↓ ${fmtK(Math.abs(trend))}`):'首次合作';
+        const trendCol=trend!==null?(trend>=0?'#27500A':'#E24B4A'):'var(--text3)';
+        return`<div style="background:${br.bg};border-left:3px solid ${br.color};border-radius:var(--radius);padding:.75rem 1rem;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:13px;font-weight:500;color:${br.text};">${br.name}</div>
+              <div style="font-size:11px;color:${br.text};opacity:.7;">${evs.length} 次合作 · 平均 ${fmtK(avg)}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:16px;font-weight:600;color:${br.text};">${fmtK(total)}</div>
+              <div style="font-size:11px;color:${trendCol};">vs 上次 ${trendStr}</div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    <div>
+      <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px;">合作記錄</div>
+      ${kolEvs.map(ev=>{
+        const br=getBrand(ev.brand)||{name:'未知',text:'var(--text2)'};
+        return`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);">
+          <div>
+            <div style="font-size:12px;font-weight:500;color:var(--text);">${ev.date} · ${br.name}</div>
+            <div style="font-size:11px;color:var(--text3);">${ev.note||'—'} · ${ev.type}</div>
+          </div>
+          <div style="font-size:14px;font-weight:600;color:var(--text);">${fmt(ev.amount)}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  openModal('kolDetailModal');
+};
+
+function renderEvKolList(){
+  const el=document.getElementById('evKolList');
+  if(!el)return;
+  el.innerHTML=kolCache.map(k=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;">
+    <input type="checkbox" value="${k.id}" style="cursor:pointer;"> ${k.name}
+  </label>`).join('');
+}
+
+// ── ENTRY ──
+window.submitEntry=async()=>{
+  const brand=document.getElementById('e-brand').value;
+  const month=parseInt(document.getElementById('e-month').value);
+  const period=document.getElementById('e-period').value;
+  const amount=parseInt(document.getElementById('e-amount').value);
+  const note=document.getElementById('e-note').value;
+  if(currentProfile.role==='readonly'){showToast('你沒有輸入權限');return;}
+  if(!canEdit(brand)){showToast('你沒有權限修改此品牌');return;}
+  if(!brand||!amount||amount<=0){showToast('請填寫品牌及有效的營業額');return;}
+  try{
+    await addDoc(collection(db,'sales'),{brandId:brand,month,period,amount,note,submittedBy:currentUser.uid,submitterName:currentProfile.name||currentUser.email,createdAt:serverTimestamp(),year:parseInt(document.getElementById('e-year').value)});
+    document.getElementById('e-amount').value='';document.getElementById('e-note').value='';
+    showToast('✓ 提交成功！');
+  }catch(e){showToast('提交失敗，請稍後再試');}
+};
+
+window.submitModalEntry=async()=>{
+  const brand=document.getElementById('me-brand').value;
+  const month=parseInt(document.getElementById('me-month').value);
+  const amount=parseInt(document.getElementById('me-amount').value);
+  const note=document.getElementById('me-note').value;
+  if(currentProfile.role==='readonly'){showToast('你沒有輸入權限');closeModal('entryModal');return;}
+  if(!canEdit(brand)){showToast('你沒有權限修改此品牌');return;}
+  if(!amount||amount<=0){showToast('請填寫有效的營業額');return;}
+  try{
+    await addDoc(collection(db,'sales'),{brandId:brand,month,period:document.getElementById('me-period').value,amount,note,submittedBy:currentUser.uid,submitterName:currentProfile.name||currentUser.email,createdAt:serverTimestamp(),year:2026});
+    document.getElementById('me-amount').value='';document.getElementById('me-note').value='';
+    closeModal('entryModal');showToast('✓ 提交成功！');
+  }catch(e){showToast('提交失敗');}
+};
+
+window.submitEvent=async()=>{
+  const brand=document.getElementById('ev-brand').value;
+  const type=document.getElementById('ev-type').value;
+  const date=document.getElementById('ev-date').value;
+  const status=document.getElementById('ev-status').value;
+  const amount=parseInt(document.getElementById('ev-amount').value)||0;
+  const note=document.getElementById('ev-note').value||'新增活動';
+  const kolIds=[...document.querySelectorAll('#evKolList input:checked')].map(i=>i.value);
+  if(!canEdit(brand)){showToast('你沒有權限修改此品牌');return;}
+  if(!date){showToast('請選擇日期');return;}
+  try{
+    await addDoc(collection(db,'events'),{brand,type,date,status,amount,note,kolIds,createdAt:serverTimestamp()});
+    document.getElementById('ev-note').value='';document.getElementById('ev-amount').value='';
+    document.querySelectorAll('#evKolList input').forEach(i=>i.checked=false);
+    closeModal('eventModal');showToast('✓ 活動已新增！');
+  }catch(e){showToast('新增失敗');}
+};
+
+window.submitKol=async()=>{
+  const name=document.getElementById('kol-name').value.trim();
+  const platform=document.getElementById('kol-platform').value;
+  const followers=parseInt(document.getElementById('kol-followers').value)||0;
+  const cost=parseInt(document.getElementById('kol-cost').value)||0;
+  const note=document.getElementById('kol-note').value;
+  if(!name){showToast('請填寫名稱');return;}
+  try{
+    await addDoc(collection(db,'kols'),{name,platform,followers,cost,note,createdAt:serverTimestamp()});
+    document.getElementById('kol-name').value='';
+    document.getElementById('kol-followers').value='';
+    document.getElementById('kol-cost').value='';
+    document.getElementById('kol-note').value='';
+    closeModal('kolModal');showToast('✓ 網紅已新增！');
+  }catch(e){showToast('新增失敗');}
+};
+
+function renderRecentEntries(entries){
+  const el=document.getElementById('recentEntries');
+  if(!entries||!entries.length){el.innerHTML='<p style="font-size:13px;color:var(--text3);text-align:center;padding:2rem 0;">尚無記錄</p>';return;}
+  el.innerHTML=entries.map(r=>{
+    const b=getBrand(r.brandId)||{color:'#888',name:'未知'};
+    const canEditThis=currentProfile.role==='admin'||(currentProfile.role==='staff'&&canEdit(r.brandId)&&r.submittedBy===currentUser.uid);
+    const canDelThis=currentProfile.role==='admin';
+    return`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;flex-wrap:wrap;">
+          <span class="brand-dot" style="background:${b.color};"></span>
+          <span style="font-size:13px;font-weight:500;color:var(--text);">${b.name}</span>
+          <span style="font-size:10px;padding:1px 6px;border-radius:99px;background:var(--bg2);color:var(--text2);">${r.month||''}月${r.period==='mid'?'月中':'月底'}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text3);">${r.note||'—'} · ${r.submitterName||'—'}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-left:8px;">
+        <span style="font-size:14px;font-weight:600;color:var(--text);">${fmt(r.amount)}</span>
+        ${canEditThis?`<button class="btn sm" style="padding:3px 8px;font-size:11px;" onclick="openEditSale('${r.id}','${r.brandId}',${r.amount},'${(r.note||'').replace(/'/g,"\'")}',${r.month},'${r.period}')">編輯</button>`:''}
+        ${canDelThis?`<button class="btn sm" style="padding:3px 8px;font-size:11px;color:#E24B4A;border-color:#E24B4A;" onclick="confirmDelete('sale','${r.id}')">刪除</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── ADMIN ──
+window.setAdminTab=(tab,btn)=>{
+  ['adminUsers','adminTargets','adminBrands'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById('admin'+tab.charAt(0).toUpperCase()+tab.slice(1)).style.display='block';
+  document.querySelectorAll('#page-admin .tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  if(tab==='targets')renderTargetsOverview();
+  if(tab==='brands')renderBrandList();
+};
+
+function renderAdminBrandCheckboxes(){
+  document.getElementById('newUserBrands').innerHTML=allBrands.map(b=>`<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;"><input type="checkbox" value="${b.id}" style="cursor:pointer;"> ${b.name}</label>`).join('');
+  const ts=document.getElementById('tgt-brand');
+  if(ts)ts.innerHTML=allBrands.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+}
+
+window.createUser=async()=>{
+  const name=document.getElementById('newUserName').value.trim();
+  const email=document.getElementById('newUserEmail').value.trim();
+  const pwd=document.getElementById('newUserPwd').value;
+  const role=document.getElementById('newUserRole').value;
+  const brands=[...document.querySelectorAll('#newUserBrands input:checked')].map(i=>i.value);
+  if(!name||!email||!pwd){showToast('請填寫所有欄位');return;}
+  try{
+    const cred=await createUserWithEmailAndPassword(auth,email,pwd);
+    await setDoc(doc(db,'users',cred.user.uid),{name,email,role,brands,createdAt:serverTimestamp()});
+    document.getElementById('newUserName').value='';document.getElementById('newUserEmail').value='';document.getElementById('newUserPwd').value='';
+    document.querySelectorAll('#newUserBrands input').forEach(i=>i.checked=false);
+    showToast('✓ 帳號建立成功！');loadUserList();
+  }catch(e){showToast(e.code==='auth/email-already-in-use'?'此電子郵件已被使用':'建立失敗：'+e.message);}
+};
+
+async function loadUserList(){
+  const snap=await getDocs(collection(db,'users'));
+  const el=document.getElementById('userList');
+  if(!el)return;
+  if(snap.empty){el.innerHTML='<p style="font-size:13px;color:var(--text3);">尚無員工帳號</p>';return;}
+  el.innerHTML=snap.docs.map(d=>{
+    const u=d.data();
+    const roleLabel=u.role==='admin'?'管理者':u.role==='readonly'?'只讀':'業務';
+    const roleBg=u.role==='admin'?'#E6F1FB':u.role==='readonly'?'#F1EFE8':'#EAF3DE';
+    const roleFg=u.role==='admin'?'#0C447C':u.role==='readonly'?'#5F5E5A':'#27500A';
+    const brandNames=(u.brands||[]).map(id=>getBrand(id)?.name||id).join('、')||'—';
+    return`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">
+      <div>
+        <div style="font-size:13px;font-weight:500;color:var(--text);">${u.name}</div>
+        <div style="font-size:11px;color:var(--text3);">${u.email}${u.role!=='readonly'?' · 負責：'+brandNames:' · 查看全部品牌'}</div>
+      </div>
+      <span style="font-size:10px;padding:2px 8px;border-radius:99px;background:${roleBg};color:${roleFg};">${roleLabel}</span>
+    </div>`;
+  }).join('');
+}
+
+window.saveTarget=async()=>{
+  const brandId=document.getElementById('tgt-brand').value;
+  const quarter=document.getElementById('tgt-quarter').value;
+  const amount=parseInt(document.getElementById('tgt-amount').value);
+  if(!amount||amount<=0){showToast('請填寫有效金額');return;}
+  const q=query(collection(db,'targets'),where('brandId','==',brandId),where('quarter','==',quarter));
+  const snap=await getDocs(q);
+  if(!snap.empty)await setDoc(snap.docs[0].ref,{brandId,quarter,amount});
+  else await addDoc(collection(db,'targets'),{brandId,quarter,amount});
+  if(!targetsCache[brandId])targetsCache[brandId]={};
+  targetsCache[brandId][quarter]=amount;
+  showToast('✓ 目標已儲存！');
+  renderTargetsOverview();renderOverview();renderMonthTable(reportMonth);renderQuarterTable(reportQuarter);
+};
+
+function renderTargetsOverview(){
+  const el=document.getElementById('targetsOverview');
+  if(!el)return;
+  el.innerHTML=`<div class="card-header"><span class="card-title">目前目標設定</span></div>
+    <div style="overflow-x:auto;"><table class="data-table" style="min-width:400px;">
+      <thead><tr><th>品牌</th><th class="r">Q1</th><th class="r">Q2</th><th class="r">Q3</th><th class="r">Q4</th></tr></thead>
+      <tbody>${allBrands.map(b=>`<tr>
+        <td><div style="display:flex;align-items:center;gap:7px;"><span class="brand-dot" style="background:${b.color};"></span>${b.name}</div></td>
+        ${['Q1','Q2','Q3','Q4'].map(q=>`<td class="r" style="color:var(--text2);">${fmtK(targetsCache[b.id]?.[q]||0)}</td>`).join('')}
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+function renderBrandList(){
+  const el=document.getElementById('brandList');
+  if(!el)return;
+  el.innerHTML=allBrands.map(b=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--border);">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span class="brand-dot" style="background:${b.color};width:14px;height:14px;"></span>
+      <span style="font-size:13px;font-weight:500;color:var(--text);">${b.name}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span style="font-size:11px;color:var(--text3);">ID: ${b.id}</span>
+      <button class="btn sm" style="font-size:11px;" onclick="openEditBrand('${b.id}')">編輯</button>
+    </div>
+  </div>`).join('');
+}
+
+// ── EXPORT ──
+window.exportData=type=>{
+  const data={
+    exportedAt:new Date().toISOString(),
+    sales:salesRaw,
+    events:eventsCache,
+    kols:kolCache,
+    brands:allBrands,
+    targets:Object.entries(targetsCache).flatMap(([brandId,qs])=>Object.entries(qs).map(([quarter,amount])=>({brandId,quarter,amount}))),
+  };
+
+  if(type==='json'){
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    downloadBlob(blob,'sales-data.json');
+    showToast('✓ JSON 已下載');
+    return;
+  }
+
+  if(type==='csv'){
+    const rows=[['日期','品牌','月份','時段','營業額','備註','輸入者']];
+    salesRaw.forEach(r=>rows.push([r.createdAt?.seconds?new Date(r.createdAt.seconds*1000).toLocaleDateString('zh-TW'):'—',getBrand(r.brandId)?.name||r.brandId,r.month,r.period==='mid'?'月中':'月底',r.amount||0,r.note||'',r.submitterName||'']));
+    const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+    downloadBlob(blob,'sales-data.csv');
+    showToast('✓ CSV 已下載');
+    return;
+  }
+
+  if(type==='excel'){
+    const salesRows=[['品牌','月份','時段','營業額','備註','輸入者','日期'],...salesRaw.map(r=>[getBrand(r.brandId)?.name||r.brandId,r.month,r.period==='mid'?'月中':'月底',r.amount||0,r.note||'',r.submitterName||'',r.createdAt?.seconds?new Date(r.createdAt.seconds*1000).toLocaleDateString('zh-TW'):'—'])];
+    const evRows=[['日期','品牌','類型','狀態','營業額','活動名稱','網紅'],...eventsCache.map(e=>[e.date,getBrand(e.brand)?.name||e.brand,e.type,e.status,e.amount||0,e.note||'',(e.kolIds||[]).map(id=>kolCache.find(k=>k.id===id)?.name||id).join('、')])];
+    const kolRows=[['名稱','平台','備註','合作次數','總營業額'],...kolCache.map(k=>{const evs=eventsCache.filter(e=>e.kolIds?.includes(k.id));return[k.name,k.platform,k.note||'',evs.length,evs.reduce((s,e)=>s+(e.amount||0),0)];})];
+    const wb=buildXLSX({'營業額記錄':salesRows,'開團活動':evRows,'網紅社團':kolRows});
+    downloadBlob(wb,'sales-data.xlsx');
+    showToast('✓ Excel 已下載');
+  }
+};
+
+function buildXLSX(sheets){
+  const toXML=(rows,name)=>{
+    const xml=rows.map((r,ri)=>`<Row ss:Index="${ri+1}">${r.map((c,ci)=>`<Cell ss:Index="${ci+1}"><Data ss:Type="${typeof c==='number'?'Number':'String'}">${String(c).replace(/&/g,'&amp;').replace(/</g,'&lt;')}</Data></Cell>`).join('')}</Row>`).join('');
+    return`<Worksheet ss:Name="${name}"><Table>${xml}</Table></Worksheet>`;
+  };
+  const xml=`<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">${Object.entries(sheets).map(([name,rows])=>toXML(rows,name)).join('')}</Workbook>`;
+  return new Blob([xml],{type:'application/vnd.ms-excel'});
+}
+
+function downloadBlob(blob,filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+// ── KOL ANALYTICS ──
+let roiChartInst=null, perFollowerChartInst=null, seasonChartInst=null;
+let roiFilter='all', currentKolTab='list';
+
+window.setKolTab=(tab,btn)=>{
+  ['list','ranking','roi','season','match'].forEach(t=>{
+    const el=document.getElementById('kol-tab-'+t);
+    if(el) el.style.display=t===tab?'block':'none';
+  });
+  document.querySelectorAll('#page-influencer .tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  currentKolTab=tab;
+  if(tab==='ranking') renderKolRanking();
+  if(tab==='roi') renderKolROI();
+  if(tab==='season') renderKolSeason();
+  if(tab==='match') renderKolMatch();
+};
+
+function getKolRevenue(kolId){ return eventsCache.filter(e=>e.kolIds?.includes(kolId)).reduce((s,e)=>s+(e.amount||0),0); }
+function getKolEvents(kolId){ return eventsCache.filter(e=>e.kolIds?.includes(kolId)); }
+function getKolAvgRev(kolId){ const evs=getKolEvents(kolId); return evs.length?Math.round(getKolRevenue(kolId)/evs.length):0; }
+
+function kolStarScore(kolId, brandId){
+  const evs=eventsCache.filter(e=>e.kolIds?.includes(kolId)&&e.brand===brandId);
+  if(!evs.length) return 0;
+  const avg=evs.reduce((s,e)=>s+(e.amount||0),0)/evs.length;
+  if(avg>=500000) return 5;
+  if(avg>=300000) return 4;
+  if(avg>=150000) return 3;
+  if(avg>=50000)  return 2;
+  return 1;
+}
+
+function renderKolRanking(){
+  if(!kolCache.length){
+    ['rankRevenue','rankROI','rankStable'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.innerHTML='<p style="font-size:13px;color:var(--text3);padding:1rem 0;">尚無資料，請先新增網紅並記錄合作活動。</p>';
+    });
+    return;
+  }
+  const byRev=[...kolCache].map(k=>({k,total:getKolRevenue(k.id)})).sort((a,b)=>b.total-a.total);
+  const maxRev=byRev[0]?.total||1;
+
+  document.getElementById('rankRevenue').innerHTML=byRev.slice(0,5).map(({k,total},i)=>{
+    const medal=['🥇','🥈','🥉','',''][i]||'';
+    return`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border);">
+      <div style="font-size:13px;font-weight:500;color:var(--text2);width:18px;">${i+1}</div>
+      <div style="width:32px;height:32px;border-radius:50%;background:#EEEDFE;color:#3C3489;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0;">${(k.name||'?').slice(0,2)}</div>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:500;color:var(--text);">${k.name} ${medal}</div>
+        <div style="font-size:11px;color:var(--text3);">${k.platform} · ${getKolEvents(k.id).length} 次合作</div>
+        <div style="height:4px;background:var(--bg3);border-radius:99px;overflow:hidden;margin-top:4px;width:100px;"><div style="height:100%;width:${Math.round(total/maxRev*100)}%;background:#534AB7;border-radius:99px;"></div></div>
+      </div>
+      <div style="font-size:14px;font-weight:500;color:var(--text);">${fmtK(total)}</div>
+    </div>`;
+  }).join('');
+
+  const paidKols=kolCache.filter(k=>(k.cost||0)>0);
+  const byROI=paidKols.map(k=>({k,roi:k.cost>0?getKolRevenue(k.id)/k.cost:0})).sort((a,b)=>b.roi-a.roi);
+  document.getElementById('rankROI').innerHTML=byROI.length?byROI.slice(0,5).map(({k,roi},i)=>{
+    const rc=roi>=5?'#27500A':roi>=3?'#185FA5':'#BA7517';
+    return`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:0.5px solid var(--border);">
+      <div style="font-size:13px;font-weight:500;color:var(--text2);width:18px;">${i+1}</div>
+      <div style="width:32px;height:32px;border-radius:50%;background:#EEEDFE;color:#3C3489;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0;">${(k.name||'?').slice(0,2)}</div>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:500;color:var(--text);">${k.name}</div>
+        <div style="font-size:11px;color:var(--text3);">費用 ${fmtK(k.cost||0)}</div>
+      </div>
+      <div style="font-size:14px;font-weight:500;color:${rc};">${roi.toFixed(1)}x</div>
+    </div>`;
+  }).join(''):'<p style="font-size:13px;color:var(--text3);padding:1rem 0;">請在網紅資料中填入合作費用</p>';
+
+  const kolsWithEvs=kolCache.filter(k=>getKolEvents(k.id).length>=2);
+  const cv=arr=>{const m=arr.reduce((s,v)=>s+v,0)/arr.length;return arr.length<2?999:Math.sqrt(arr.reduce((s,v)=>s+(v-m)**2,0)/arr.length)/m;};
+  const byStable=kolsWithEvs.map(k=>({k,cv:cv(getKolEvents(k.id).map(e=>e.amount||0)),avg:getKolAvgRev(k.id)})).sort((a,b)=>a.cv-b.cv);
+  document.getElementById('rankStable').innerHTML=byStable.length?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;">
+    ${byStable.slice(0,3).map(({k,cv,avg},i)=>`<div style="background:var(--bg2);border-radius:var(--radius);padding:.85rem;text-align:center;">
+      <div style="font-size:10px;color:${i===0?'#27500A':'var(--text3)'};margin-bottom:5px;font-weight:500;">${['最穩定','次穩定','第三穩定'][i]}</div>
+      <div style="width:36px;height:36px;border-radius:50%;background:#EEEDFE;color:#3C3489;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;margin:0 auto 6px;">${(k.name||'?').slice(0,2)}</div>
+      <div style="font-size:13px;font-weight:500;color:var(--text);">${k.name}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:3px;">平均 ${fmtK(avg)}/次</div>
+    </div>`).join('')}
+  </div>`:'<p style="font-size:13px;color:var(--text3);padding:1rem 0;">每位網紅需至少 2 次合作記錄</p>';
+}
+
+window.setROIFilter=(f,btn)=>{
+  roiFilter=f;
+  document.querySelectorAll('#kol-tab-roi .filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderKolROI();
+};
+
+function renderKolROI(){
+  const filtered=roiFilter==='all'?kolCache:roiFilter==='paid'?kolCache.filter(k=>(k.cost||0)>0):kolCache.filter(k=>!(k.cost||0));
+  if(!filtered.length){document.getElementById('roiChart').closest('.card').querySelector('.card-title').nextElementSibling.innerHTML='<p style="font-size:13px;color:var(--text3);padding:2rem 0;text-align:center;">尚無資料</p>';return;}
+  const labels=filtered.map(k=>k.name.length>6?k.name.slice(0,5)+'…':k.name);
+  const revenues=filtered.map(k=>getKolAvgRev(k.id));
+  const costs=filtered.map(k=>k.cost||0);
+  const rois=filtered.map(k=>(k.cost||0)>0?parseFloat((getKolRevenue(k.id)/(k.cost||1)).toFixed(1)):null);
+  const dk=matchMedia('(prefers-color-scheme:dark)').matches;
+  const tc=dk?'#6b6b66':'#9b9b96', gc=dk?'rgba(255,255,255,.06)':'rgba(0,0,0,.05)';
+
+  if(roiChartInst)roiChartInst.destroy();
+  roiChartInst=new Chart(document.getElementById('roiChart'),{
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'平均月營業額',data:revenues,backgroundColor:'#B5D4F4',borderRadius:4,order:2},
+      {label:'合作費用',data:costs,backgroundColor:'#F09595',borderRadius:4,order:2},
+      {label:'ROI',data:rois,type:'line',borderColor:'#27500A',backgroundColor:'#27500A',pointRadius:5,borderWidth:2,yAxisID:'y2',order:1,spanGaps:false},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'K',font:{size:11},color:tc},grid:{color:gc}},
+        y2:{position:'right',ticks:{callback:v=>v+'x',font:{size:11},color:'#27500A'},grid:{display:false},min:0},
+        x:{ticks:{font:{size:10},color:tc},grid:{display:false}}}}
+  });
+
+  const perF=filtered.map(k=>(k.followers||0)>0?parseFloat((getKolAvgRev(k.id)/(k.followers||1)).toFixed(2)):0);
+  if(perFollowerChartInst)perFollowerChartInst.destroy();
+  perFollowerChartInst=new Chart(document.getElementById('perFollowerChart'),{
+    type:'bar',
+    data:{labels,datasets:[{label:'每粉絲帶貨金額',data:perF,backgroundColor:filtered.map((_,i)=>['#B5D4F4','#9FE1CB','#FAC775','#CECBF6','#F4C0D1','#D3D1C7'][i%6]),borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{ticks:{callback:v=>'$'+v.toFixed(1),font:{size:11},color:tc},grid:{color:gc}},x:{ticks:{font:{size:10},color:tc},grid:{display:false}}}}
+  });
+}
+
+function renderKolSeason(){
+  const monthlyRev=Array.from({length:12},(_,mi)=>{
+    const m=mi+1;
+    return eventsCache.filter(e=>{
+      if(!e.kolIds?.length||!e.date)return false;
+      const em=parseInt(e.date.split('-')[1]);
+      return em===m;
+    }).reduce((s,e)=>s+(e.amount||0),0);
+  });
+
+  const qTotals=[[0,1,2],[3,4,5],[6,7,8],[9,10,11]].map(idxs=>idxs.reduce((s,i)=>s+monthlyRev[i],0));
+  const qLabels=['Q1（1-3月）','Q2（4-6月）','Q3（7-9月）','Q4（10-12月）'];
+  const maxQ=Math.max(...qTotals,1);
+  document.getElementById('seasonSummary').innerHTML=qTotals.map((v,i)=>{
+    const isMax=v===maxQ&&v>0;
+    return`<div style="background:var(--bg2);border-radius:var(--radius);padding:.75rem;text-align:center;">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">${qLabels[i]}</div>
+      <div style="font-size:16px;font-weight:500;color:var(--text);">${v?fmtK(v):'—'}</div>
+      ${isMax?'<div style="font-size:10px;color:#27500A;margin-top:2px;">最佳季度</div>':''}
+    </div>`;
+  }).join('');
+
+  const dk=matchMedia('(prefers-color-scheme:dark)').matches;
+  const tc=dk?'#6b6b66':'#9b9b96',gc=dk?'rgba(255,255,255,.06)':'rgba(0,0,0,.05)';
+  if(seasonChartInst)seasonChartInst.destroy();
+  seasonChartInst=new Chart(document.getElementById('seasonChart'),{
+    type:'line',
+    data:{labels:['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+      datasets:[{label:'網紅帶貨月營業額',data:monthlyRev,borderColor:'#534AB7',backgroundColor:'#534AB722',tension:0.4,fill:true,pointBackgroundColor:'#534AB7',pointRadius:4,borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'K',font:{size:11},color:tc},grid:{color:gc}},x:{ticks:{font:{size:10},color:tc},grid:{display:false}}}}
+  });
+
+  const sorted=[...monthlyRev].map((v,i)=>({m:i+1,v})).sort((a,b)=>b.v-a.v);
+  const monthNames=['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  document.getElementById('bestMonths').innerHTML=sorted.slice(0,4).map(({m,v},i)=>{
+    const colors=[['#EAF3DE','#27500A'],['#EAF3DE','#27500A'],['#E6F1FB','#0C447C'],['#E6F1FB','#0C447C']];
+    return`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:0.5px solid var(--border);">
+      <span style="font-size:14px;font-weight:500;color:var(--text);">${monthNames[m]}</span>
+      <span style="font-size:12px;font-weight:500;padding:3px 8px;border-radius:99px;background:${colors[i][0]};color:${colors[i][1]};">${v?fmtK(v):'—'}</span>
+    </div>`;
+  }).join('');
+
+  const platforms=[...new Set(kolCache.map(k=>k.platform))];
+  document.getElementById('platformSeason').innerHTML=platforms.length?platforms.slice(0,4).map(p=>{
+    const pKolIds=kolCache.filter(k=>k.platform===p).map(k=>k.id);
+    const pEvs=eventsCache.filter(e=>e.kolIds?.some(id=>pKolIds.includes(id)));
+    const qRevs=[[0,1,2],[3,4,5],[6,7,8],[9,10,11]].map(idxs=>idxs.reduce((s,mi)=>{
+      return s+pEvs.filter(e=>parseInt(e.date?.split('-')[1]||'0')===mi+1).reduce((ss,e)=>ss+(e.amount||0),0);
+    },0));
+    const maxPQ=Math.max(...qRevs,1);
+    return`<div style="padding:8px 0;border-bottom:0.5px solid var(--border);">
+      <div style="font-size:12px;font-weight:500;color:var(--text);margin-bottom:5px;">${p}</div>
+      <div style="display:flex;gap:5px;">
+        ${qRevs.map((v,i)=>{
+          const pct=Math.round(v/maxPQ*100);
+          const bg=pct>=80?'#EAF3DE':pct>=50?'#E6F1FB':pct>=30?'#FAEEDA':'#F1EFE8';
+          const fg=pct>=80?'#27500A':pct>=50?'#0C447C':pct>=30?'#633806':'#5F5E5A';
+          return`<span style="font-size:10px;padding:2px 6px;border-radius:99px;background:${bg};color:${fg};">Q${i+1}</span>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join(''):'<p style="font-size:13px;color:var(--text3);padding:1rem 0;">尚無平台資料</p>';
+}
+
+function renderKolMatch(){
+  const vb=visibleBrands();
+  const colW=Math.floor(70/vb.length);
+  document.getElementById('matchTableHead').innerHTML=`<tr>
+    <th style="text-align:left;padding:8px;border-bottom:0.5px solid var(--border);font-weight:500;color:var(--text2);font-size:11px;width:25%;">網紅</th>
+    ${vb.map(b=>`<th style="text-align:center;padding:8px;border-bottom:0.5px solid var(--border);font-weight:500;color:${b.color};font-size:11px;width:${colW}%;">${b.name}</th>`).join('')}
+    <th style="text-align:center;padding:8px;border-bottom:0.5px solid var(--border);font-weight:500;color:var(--text2);font-size:11px;width:12%;">平均</th>
+    <th style="text-align:left;padding:8px;border-bottom:0.5px solid var(--border);font-weight:500;color:var(--text2);font-size:11px;">建議</th>
+  </tr>`;
+
+  const starColor=n=>n>=5?'#27500A':n>=4?'#185FA5':n>=3?'#BA7517':n>=2?'#5F5E5A':'#E24B4A';
+
+  if(!kolCache.length){
+    document.getElementById('matchTable').innerHTML=`<tr><td colspan="${vb.length+3}" style="text-align:center;padding:2rem;font-size:13px;color:var(--text3);">尚無網紅資料</td></tr>`;
+    document.getElementById('recommendations').innerHTML='<p style="font-size:13px;color:var(--text3);">新增網紅並記錄合作活動後將自動計算</p>';
+    return;
+  }
+
+  const rows=kolCache.map(k=>{
+    const scores=Object.fromEntries(vb.map(b=>[b.id,kolStarScore(k.id,b.id)]));
+    const validScores=Object.values(scores).filter(s=>s>0);
+    const avg=validScores.length?Math.round(validScores.reduce((s,v)=>s+v,0)/validScores.length*10)/10:0;
+    return{k,scores,avg};
+  });
+
+  document.getElementById('matchTable').innerHTML=rows.map(({k,scores,avg})=>{
+    const rec=vb.filter(b=>scores[b.id]>=4).map(b=>b.name);
+    return`<tr style="border-bottom:0.5px solid var(--border);">
+      <td style="padding:10px 8px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="width:24px;height:24px;border-radius:50%;background:#EEEDFE;color:#3C3489;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;flex-shrink:0;">${(k.name||'?').slice(0,2)}</div>
+          <div style="font-size:12px;font-weight:500;color:var(--text);">${k.name}</div>
+        </div>
+      </td>
+      ${vb.map(b=>`<td style="text-align:center;padding:8px;font-size:12px;color:${starColor(scores[b.id]||0)};">${'★'.repeat(scores[b.id]||0)||'—'}</td>`).join('')}
+      <td style="text-align:center;padding:8px;font-size:12px;font-weight:500;color:${starColor(Math.round(avg))};">${avg||'—'}</td>
+      <td style="padding:8px;font-size:11px;color:${rec.length?'#27500A':'var(--text3)'};">${rec.length?rec.join('、'):'觀察中'}</td>
+    </tr>`;
+  }).join('');
+
+  const topCombos=rows.filter(r=>r.avg>=3).sort((a,b)=>b.avg-a.avg);
+  document.getElementById('recommendations').innerHTML=topCombos.length?
+    topCombos.map(({k,scores,avg})=>{
+      const bestBrands=vb.filter(b=>scores[b.id]>=4).map(b=>b.name);
+      return`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:0.5px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:32px;height:32px;border-radius:50%;background:#EEEDFE;color:#3C3489;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;">${(k.name||'?').slice(0,2)}</div>
+          <div>
+            <div style="font-size:13px;font-weight:500;color:var(--text);">${k.name}</div>
+            <div style="font-size:11px;color:var(--text3);">建議合作：${bestBrands.length?bestBrands.join('、'):'繼續觀察'}</div>
+          </div>
+        </div>
+        <span style="font-size:11px;padding:3px 10px;border-radius:99px;background:#EAF3DE;color:#27500A;">平均 ${avg} ★</span>
+      </div>`;
+    }).join('')
+    :'<p style="font-size:13px;color:var(--text3);padding:1rem 0;">累積更多合作數據後將顯示推薦</p>';
+}
+
+// ── NAV ──
+const pageTitles={overview:'品牌進度總覽',report:'月 / 季報表',trend:'銷售趨勢',calendar:'開團日曆',influencer:'網紅 / 社團分析',entry:'輸入營業額',admin:'管理設定',audit:'操作日誌'};
+window.showPage=(id,el)=>{
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('pageTitle').textContent=pageTitles[id]||id;
+  if(id==='trend')renderTrend();
+  if(id==='audit')renderAuditLog();
+  if(id==='influencer'&&currentKolTab!=='list'){
+    if(currentKolTab==='ranking')renderKolRanking();
+    if(currentKolTab==='roi')renderKolROI();
+    if(currentKolTab==='season')renderKolSeason();
+    if(currentKolTab==='match')renderKolMatch();
+  }
+};
+
+// ── EDIT & DELETE ──
+let deleteTarget={type:null,id:null};
+
+window.openEditSale=(id,brandId,amount,note,month,period)=>{
+  document.getElementById('edit-sale-id').value=id;
+  document.getElementById('edit-sale-month').value=month+'月';
+  document.getElementById('edit-sale-period').value=period==='mid'?'月中':'月底';
+  document.getElementById('edit-sale-amount').value=amount;
+  document.getElementById('edit-sale-note').value=note;
+  openModal('editSaleModal');
+};
+
+window.saveEditSale=async()=>{
+  const id=document.getElementById('edit-sale-id').value;
+  const amount=parseInt(document.getElementById('edit-sale-amount').value);
+  const note=document.getElementById('edit-sale-note').value;
+  if(!id){showToast('找不到記錄 ID');return;}
+  if(!amount||amount<=0){showToast('請填寫有效的營業額');return;}
+  try{
+    const ref=doc(db,'sales',id);
+    await updateDoc(ref,{amount,note});
+    await writeAuditLog('edit','sale',id,`修改營業額為 ${amount} 元，備註：${note||'—'}`);
+    closeModal('editSaleModal');showToast('✓ 記錄已更新！');
+  }catch(e){console.error(e);showToast('更新失敗：'+e.message);}
+};
+
+window.openEditKol=id=>{
+  const kol=kolCache.find(k=>k.id===id);
+  if(!kol)return;
+  document.getElementById('edit-kol-id').value=id;
+  document.getElementById('edit-kol-name').value=kol.name||'';
+  document.getElementById('edit-kol-platform').value=kol.platform||'IG';
+  document.getElementById('edit-kol-followers').value=kol.followers||0;
+  document.getElementById('edit-kol-cost').value=kol.cost||0;
+  document.getElementById('edit-kol-note').value=kol.note||'';
+  openModal('editKolModal');
+};
+
+window.saveEditKol=async()=>{
+  const id=document.getElementById('edit-kol-id').value;
+  const name=document.getElementById('edit-kol-name').value.trim();
+  const platform=document.getElementById('edit-kol-platform').value;
+  const followers=parseInt(document.getElementById('edit-kol-followers').value)||0;
+  const cost=parseInt(document.getElementById('edit-kol-cost').value)||0;
+  const note=document.getElementById('edit-kol-note').value;
+  if(!id){showToast('找不到記錄 ID');return;}
+  if(!name){showToast('請填寫名稱');return;}
+  try{
+    const ref=doc(db,'kols',id);
+    await updateDoc(ref,{name,platform,followers,cost,note});
+    await writeAuditLog('edit','kol',id,`修改網紅資料：${name} / ${platform}`);
+    closeModal('editKolModal');showToast('✓ 網紅資料已更新！');
+  }catch(e){console.error(e);showToast('更新失敗：'+e.message);}
+};
+
+window.openEditBrand=id=>{
+  const b=getBrand(id);if(!b)return;
+  document.getElementById('edit-brand-id').value=id;
+  document.getElementById('edit-brand-name').value=b.name||'';
+  document.getElementById('edit-brand-color').value=b.color||'';
+  document.getElementById('edit-brand-preview').style.background=b.color||'#ccc';
+  openModal('editBrandModal');
+};
+document.getElementById('edit-brand-color')?.addEventListener('input',e=>{
+  document.getElementById('edit-brand-preview').style.background=e.target.value;
+});
+
+window.saveEditBrand=async()=>{
+  const id=document.getElementById('edit-brand-id').value;
+  const name=document.getElementById('edit-brand-name').value.trim();
+  const color=document.getElementById('edit-brand-color').value.trim();
+  if(!id){showToast('找不到品牌 ID');return;}
+  if(!name){showToast('請填寫品牌名稱');return;}
+  try{
+    const ref=doc(db,'brands',id);
+    await updateDoc(ref,{name,color});
+    await writeAuditLog('edit','brand',id,`修改品牌資料：${name}`);
+    closeModal('editBrandModal');showToast('✓ 品牌資料已更新！');
+  }catch(e){console.error(e);showToast('更新失敗：'+e.message);}
+};
+
+window.confirmDelete=(type,id)=>{
+  deleteTarget={type,id};
+  const msgs={sale:'確定要刪除這筆營業額記錄嗎？此操作無法復原。',kol:'確定要刪除這個網紅/社團嗎？相關合作記錄不會被刪除。',event:'確定要刪除這個開團活動嗎？此操作無法復原。'};
+  document.getElementById('confirmDeleteMsg').textContent=msgs[type]||'確定要刪除嗎？此操作無法復原。';
+  openModal('confirmDeleteModal');
+};
+
+window.executeDelete=async()=>{
+  const{type,id}=deleteTarget;
+  if(!type||!id)return;
+  try{
+    const colName=type==='sale'?'sales':type==='kol'?'kols':'events';
+    const delRef=doc(db,colName,id);
+    await deleteDoc(delRef);
+    await writeAuditLog('delete',type,id,`刪除${type==='sale'?'營業額記錄':type==='kol'?'網紅資料':'開團活動'}`);
+    closeModal('confirmDeleteModal');
+    showToast('✓ 已刪除');
+    deleteTarget={type:null,id:null};
+  }catch(e){showToast('刪除失敗：'+e.message);}
+};
+</script>
+
+<!-- EDIT SALE MODAL -->
+<div class="modal-overlay" id="editSaleModal">
+  <div class="modal">
+    <div class="modal-title">編輯營業額記錄</div>
+    <input type="hidden" id="edit-sale-id">
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">月份</label><input type="text" class="form-input" id="edit-sale-month" readonly style="opacity:.6;"></div>
+      <div class="form-group"><label class="form-label">時段</label><input type="text" class="form-input" id="edit-sale-period" readonly style="opacity:.6;"></div>
+    </div>
+    <div class="form-group"><label class="form-label">營業額（元）</label><input type="number" class="form-input" id="edit-sale-amount"></div>
+    <div class="form-group"><label class="form-label">備註</label><input type="text" class="form-input" id="edit-sale-note"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('editSaleModal')">取消</button>
+      <button class="btn primary" onclick="saveEditSale()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT KOL MODAL -->
+<div class="modal-overlay" id="editKolModal">
+  <div class="modal">
+    <div class="modal-title">編輯網紅 / 社團資料</div>
+    <input type="hidden" id="edit-kol-id">
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">名稱</label><input type="text" class="form-input" id="edit-kol-name"></div>
+      <div class="form-group"><label class="form-label">平台</label>
+        <select class="form-input" id="edit-kol-platform">
+          <option value="IG">Instagram</option><option value="YouTube">YouTube</option>
+          <option value="FB">Facebook</option><option value="社團">社團</option><option value="其他">其他</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">粉絲數</label><input type="number" class="form-input" id="edit-kol-followers"></div>
+      <div class="form-group"><label class="form-label">合作費用（元）</label><input type="number" class="form-input" id="edit-kol-cost"></div>
+    </div>
+    <div class="form-group"><label class="form-label">備註</label><input type="text" class="form-input" id="edit-kol-note"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('editKolModal')">取消</button>
+      <button class="btn primary" onclick="saveEditKol()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT BRAND MODAL -->
+<div class="modal-overlay" id="editBrandModal">
+  <div class="modal">
+    <div class="modal-title">編輯品牌資料</div>
+    <input type="hidden" id="edit-brand-id">
+    <div class="form-group"><label class="form-label">品牌名稱</label><input type="text" class="form-input" id="edit-brand-name"></div>
+    <div class="form-row">
+      <div class="form-group"><label class="form-label">主色（Hex）</label><input type="text" class="form-input" id="edit-brand-color" placeholder="#185FA5"></div>
+      <div class="form-group"><label class="form-label">預覽</label><div id="edit-brand-preview" style="height:36px;border-radius:var(--radius);border:0.5px solid var(--border2);"></div></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('editBrandModal')">取消</button>
+      <button class="btn primary" onclick="saveEditBrand()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM DELETE MODAL -->
+<div class="modal-overlay" id="confirmDeleteModal">
+  <div class="modal" style="width:360px;">
+    <div class="modal-title">確認刪除</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:1.25rem;" id="confirmDeleteMsg">確定要刪除這筆記錄嗎？此操作無法復原。</p>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('confirmDeleteModal')">取消</button>
+      <button class="btn primary" style="background:#E24B4A;border-color:#E24B4A;" onclick="executeDelete()">確認刪除</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>  .btn.primary { background:var(--text); color:var(--bg); border-color:var(--text); width:100%; padding:10px; font-size:13px; margin-top:4px; }
   .btn.primary:hover { opacity:.85; }
   .login-err { font-size:12px; color:#E24B4A; margin-top:8px; text-align:center; min-height:18px; }
 
